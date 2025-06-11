@@ -3,9 +3,10 @@ using NPOI.XSSF.UserModel;
 using System;
 using System.Data;
 using System.Data.SqlClient;
-using System.Diagnostics;
+using System.Diagnostics; // For Stopwatch
 using System.IO;
 using System.Windows.Forms;
+using System.Text.RegularExpressions; // Added for Regex validation
 
 namespace HOMEPAGE
 {
@@ -18,12 +19,15 @@ namespace HOMEPAGE
         private DataTable cachePelanggan = null;
         // Stores the old customer name for change detection during updates
         private string oldNamaPelanggan = "";
+        // Stores the old email for change detection during updates
+        private string oldEmailPelanggan = "";
 
         public PELANGGAN()
         {
             InitializeComponent();
             TampilData(); // Initial data display
             LoadCachedData(); // Load data into the cache
+            ClearInputFields(); // Clear fields on load for a fresh start
         }
 
         /// <summary>
@@ -33,10 +37,17 @@ namespace HOMEPAGE
         {
             try
             {
+                // Clear existing columns to prevent duplicates if TampilData is called multiple times
+                // (though LoadCachedData is primarily used to refresh dgvPelanggan.DataSource now)
+                if (dgvPelanggan.Columns.Contains("ID_Pelanggan")) dgvPelanggan.Columns.Remove("ID_Pelanggan");
+                if (dgvPelanggan.Columns.Contains("Nama")) dgvPelanggan.Columns.Remove("Nama");
+                if (dgvPelanggan.Columns.Contains("Email")) dgvPelanggan.Columns.Remove("Email");
+
                 using (SqlConnection conn = new SqlConnection(connectionString)) // Use 'using' for proper resource management
                 {
                     conn.Open();
-                    string query = "SELECT * FROM Pelanggan";
+                    // Specify columns explicitly for clarity and control
+                    string query = "SELECT ID_Pelanggan, Nama, Email FROM Pelanggan";
                     SqlDataAdapter adapter = new SqlDataAdapter(query, conn);
                     DataTable dt = new DataTable();
                     adapter.Fill(dt);
@@ -54,59 +65,176 @@ namespace HOMEPAGE
         /// </summary>
         private void LoadCachedData()
         {
-            // Only load if the cache is empty
+            // Only load if the cache is empty or needs to be refreshed
             if (cachePelanggan == null)
             {
                 cachePelanggan = new DataTable();
-                using (SqlConnection conn = new SqlConnection(connectionString)) // Use 'using' for proper resource management
+                try
                 {
-                    using (var da = new SqlDataAdapter("SELECT * FROM Pelanggan", conn))
+                    using (SqlConnection newConn = new SqlConnection(connectionString)) // Use a new connection for the cache load
                     {
-                        da.Fill(cachePelanggan);
+                        newConn.Open();
+                        using (var da = new SqlDataAdapter("SELECT ID_Pelanggan, Nama, Email FROM Pelanggan", newConn))
+                        {
+                            da.Fill(cachePelanggan);
+                        }
                     }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Gagal memuat data cache: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             dgvPelanggan.DataSource = cachePelanggan;
         }
 
         /// <summary>
+        /// Clears the input fields in the form and resets old values.
+        /// </summary>
+        private void ClearInputFields()
+        {
+            txtIdPelanggan.Clear();
+            txtNama.Clear();
+            txtEmail.Clear();
+            txtIdPelanggan.Focus();
+            oldNamaPelanggan = ""; // Reset old values
+            oldEmailPelanggan = "";
+        }
+
+        /// <summary>
         /// Handles the click event for the "Tambah" (Add) button.
-        /// Adds a new customer record to the database.
+        /// Adds a new customer record to the database with client-side and server-side validation.
         /// </summary>
         private void btnTambah_Click(object sender, EventArgs e)
         {
-            // Input validation
-            if (string.IsNullOrWhiteSpace(txtIdPelanggan.Text) || string.IsNullOrWhiteSpace(txtNama.Text) || string.IsNullOrWhiteSpace(txtEmail.Text))
+            // Client-side validation for empty fields
+            if (string.IsNullOrWhiteSpace(txtIdPelanggan.Text))
             {
-                MessageBox.Show("ID, Nama, dan Email harus diisi.", "Peringatan", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("ID Pelanggan tidak boleh kosong.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtIdPelanggan.Focus();
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(txtNama.Text))
+            {
+                MessageBox.Show("Nama Pelanggan tidak boleh kosong.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtNama.Focus();
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(txtEmail.Text))
+            {
+                MessageBox.Show("Email tidak boleh kosong.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtEmail.Focus();
+                return;
+            }
+
+            // Client-side validation for ID_Pelanggan format:
+            // Must start with '01' and be 3 or 4 characters long (excluding trailing spaces if CHAR is used).
+            // Regex: ^01[A-Za-z0-9]{1,2}$
+            // - ^01: starts with '01'
+            // - [A-Za-z0-9]{1,2}: followed by 1 or 2 alphanumeric characters
+            // - $: end of string
+            if (!Regex.IsMatch(txtIdPelanggan.Text.Trim(), @"^01[A-Za-z0-9]{1,2}$"))
+            {
+                MessageBox.Show("ID Pelanggan harus dimulai dengan '01' dan memiliki panjang total 3 atau 4 karakter.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtIdPelanggan.Focus();
+                return;
+            }
+
+            // Client-side validation for Nama (only letters and spaces, based on trigger)
+            if (Regex.IsMatch(txtNama.Text, @"[^A-Za-z ]"))
+            {
+                MessageBox.Show("Nama Pelanggan hanya boleh berisi huruf dan spasi.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtNama.Focus();
+                return;
+            }
+
+            // Client-side validation for Email format (simple regex for basic check)
+            // Ensures there's a non-whitespace character before and after '@', and a '.' after '@'.
+            if (!Regex.IsMatch(txtEmail.Text, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+            {
+                MessageBox.Show("Format Email tidak valid. Contoh: nama@example.com", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtEmail.Focus();
                 return;
             }
 
             using (SqlConnection conn = new SqlConnection(connectionString))
             {
                 conn.Open();
-                using (SqlTransaction tran = conn.BeginTransaction()) // Use 'using' for transaction management
+                using (SqlTransaction tran = conn.BeginTransaction())
                 {
                     try
                     {
+                        // Pre-emptive check if ID already exists (better UX than waiting for PK error)
+                        SqlCommand checkIdCmd = new SqlCommand("SELECT COUNT(1) FROM Pelanggan WHERE TRIM(ID_Pelanggan) = @ID_Pelanggan", conn, tran);
+                        checkIdCmd.Parameters.AddWithValue("@ID_Pelanggan", txtIdPelanggan.Text.Trim());
+                        int idCount = (int)checkIdCmd.ExecuteScalar();
+                        if (idCount > 0)
+                        {
+                            MessageBox.Show($"Gagal Menambah Data: ID Pelanggan '{txtIdPelanggan.Text.Trim()}' sudah ada. Silakan gunakan ID lain.", "Kesalahan Input Data", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            tran.Rollback();
+                            txtIdPelanggan.Focus();
+                            return;
+                        }
+
+                        // Pre-emptive check if Email already exists (better UX than waiting for UNIQUE constraint error)
+                        SqlCommand checkEmailCmd = new SqlCommand("SELECT COUNT(1) FROM Pelanggan WHERE Email = @Email", conn, tran);
+                        checkEmailCmd.Parameters.AddWithValue("@Email", txtEmail.Text.Trim());
+                        int emailCount = (int)checkEmailCmd.ExecuteScalar();
+                        if (emailCount > 0)
+                        {
+                            MessageBox.Show($"Gagal Menambah Data: Email '{txtEmail.Text.Trim()}' sudah digunakan oleh pelanggan lain. Silakan gunakan email lain.", "Kesalahan Input Data", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            tran.Rollback();
+                            txtEmail.Focus();
+                            return;
+                        }
+
+                        // Call the stored procedure to add data
                         SqlCommand cmd = new SqlCommand("sp_TambahPelanggan", conn, tran)
                         {
                             CommandType = CommandType.StoredProcedure
                         };
-                        cmd.Parameters.AddWithValue("@ID_Pelanggan", txtIdPelanggan.Text);
-                        cmd.Parameters.AddWithValue("@Nama", txtNama.Text);
-                        cmd.Parameters.AddWithValue("@Email", txtEmail.Text);
+                        cmd.Parameters.AddWithValue("@ID_Pelanggan", txtIdPelanggan.Text.Trim()); // Send trimmed ID
+                        cmd.Parameters.AddWithValue("@Nama", txtNama.Text.Trim());
+                        cmd.Parameters.AddWithValue("@Email", txtEmail.Text.Trim());
                         cmd.ExecuteNonQuery();
 
                         tran.Commit(); // Commit the transaction on success
                         MessageBox.Show("Berhasil Menambah Data", "Informasi", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                         cachePelanggan = null; // Invalidate the cache to reload fresh data
-                        LoadCachedData(); // Reload cached data
+                        LoadCachedData();      // Reload cached data
+                        ClearInputFields();    // Clear input fields for next entry
+                    }
+                    catch (SqlException ex)
+                    {
+                        tran.Rollback(); // Rollback the transaction on error
+                        string errorMessage = "Terjadi kesalahan saat menambah data pelanggan: ";
+
+                        switch (ex.Number)
+                        {
+                            case 2627: // Primary key violation (duplicate ID_Pelanggan)
+                                errorMessage += $"ID Pelanggan '{txtIdPelanggan.Text.Trim()}' sudah ada. Silakan gunakan ID lain.";
+                                break;
+                            case 2601: // Unique constraint violation (duplicate Email)
+                                errorMessage += $"Email '{txtEmail.Text.Trim()}' sudah digunakan oleh pelanggan lain. Silakan gunakan email lain.";
+                                break;
+                            case 50000: // Custom RAISERROR from triggers
+                                // Your triggers are designed to send specific messages, so use them directly.
+                                errorMessage = ex.Message;
+                                break;
+                            case 8152: // String or binary data would be truncated (e.g., Nama or Email too long)
+                                errorMessage += "Nama atau Email terlalu panjang. Mohon periksa kembali input Anda.";
+                                break;
+                            // Case 547 (CHECK constraint) is less likely to be hit directly if triggers with RAISERROR are active for format checks.
+                            default:
+                                errorMessage += $"Terjadi kesalahan database: {ex.Message}";
+                                break;
+                        }
+                        MessageBox.Show(errorMessage, "Kesalahan Database", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                     catch (Exception ex)
                     {
-                        tran.Rollback(); // Rollback the transaction on error
+                        tran.Rollback();
                         MessageBox.Show("Gagal Menambah Data: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
@@ -115,18 +243,18 @@ namespace HOMEPAGE
 
         /// <summary>
         /// Handles the click event for the "Hapus" (Delete) button.
-        /// Deletes a customer record from the database.
+        /// Deletes a customer record from the database with confirmation and error handling.
         /// </summary>
         private void btnHapus_Click(object sender, EventArgs e)
         {
-            // Input validation
             if (string.IsNullOrWhiteSpace(txtIdPelanggan.Text))
             {
-                MessageBox.Show("ID harus diisi untuk menghapus.", "Peringatan", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("ID Pelanggan harus diisi untuk menghapus.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtIdPelanggan.Focus();
                 return;
             }
 
-            // Confirmation dialog
+            // Confirmation dialog before deleting
             if (MessageBox.Show("Apakah Anda yakin ingin menghapus data ini?", "Konfirmasi Hapus", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
                 using (SqlConnection conn = new SqlConnection(connectionString))
@@ -140,14 +268,36 @@ namespace HOMEPAGE
                             {
                                 CommandType = CommandType.StoredProcedure
                             };
-                            // FIX APPLIED HERE: Changed "@ID" to "@ID_Pelanggan" to match the stored procedure's expected parameter name
-                            cmd.Parameters.AddWithValue("@ID_Pelanggan", txtIdPelanggan.Text);
-                            cmd.ExecuteNonQuery();
+                            cmd.Parameters.AddWithValue("@ID_Pelanggan", txtIdPelanggan.Text.Trim()); // Use Trim() for consistency
+                            int rowsAffected = cmd.ExecuteNonQuery();
 
-                            tran.Commit();
-                            MessageBox.Show("Berhasil Menghapus Data", "Informasi", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            cachePelanggan = null;
-                            LoadCachedData();
+                            if (rowsAffected == 0)
+                            {
+                                MessageBox.Show($"Data pelanggan dengan ID '{txtIdPelanggan.Text.Trim()}' tidak ditemukan.", "Hapus Gagal", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                tran.Rollback(); // Rollback if no rows were affected (ID not found)
+                            }
+                            else
+                            {
+                                tran.Commit(); // Commit on successful deletion
+                                MessageBox.Show("Berhasil Menghapus Data", "Informasi", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                cachePelanggan = null; // Invalidate cache
+                                LoadCachedData();      // Reload data
+                                ClearInputFields();    // Clear fields
+                            }
+                        }
+                        catch (SqlException ex)
+                        {
+                            tran.Rollback(); // Rollback on error
+                            string errorMessage = "Terjadi kesalahan saat menghapus data pelanggan: ";
+                            if (ex.Number == 547) // Foreign key constraint violation (e.g., customer has associated racikan_parfum or transaksi)
+                            {
+                                errorMessage += "Data pelanggan ini tidak dapat dihapus karena terkait dengan data lain (misalnya, racikan parfum atau transaksi). Harap hapus data terkait terlebih dahulu.";
+                            }
+                            else
+                            {
+                                errorMessage += $"Terjadi kesalahan database: {ex.Message}";
+                            }
+                            MessageBox.Show(errorMessage, "Kesalahan Database", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                         catch (Exception ex)
                         {
@@ -161,25 +311,62 @@ namespace HOMEPAGE
 
         /// <summary>
         /// Handles the click event for the "Update" button.
-        /// Updates an existing customer record in the database.
+        /// Updates an existing customer record in the database with validation.
         /// </summary>
         private void btnUpdate_Click(object sender, EventArgs e)
         {
-            // Input validation
-            if (string.IsNullOrWhiteSpace(txtIdPelanggan.Text) || string.IsNullOrWhiteSpace(txtNama.Text) || string.IsNullOrWhiteSpace(txtEmail.Text))
+            // Client-side validation for empty fields
+            if (string.IsNullOrWhiteSpace(txtIdPelanggan.Text))
             {
-                MessageBox.Show("ID, Nama, dan Email harus diisi.", "Peringatan", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("ID Pelanggan tidak boleh kosong untuk update.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtIdPelanggan.Focus();
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(txtNama.Text))
+            {
+                MessageBox.Show("Nama Pelanggan tidak boleh kosong untuk update.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtNama.Focus();
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(txtEmail.Text))
+            {
+                MessageBox.Show("Email tidak boleh kosong untuk update.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtEmail.Focus();
                 return;
             }
 
-            // Check for actual changes
-            if (txtNama.Text == oldNamaPelanggan)
+            // Client-side validation for ID_Pelanggan format (same as Add)
+            if (!Regex.IsMatch(txtIdPelanggan.Text.Trim(), @"^01[A-Za-z0-9]{1,2}$"))
             {
-                MessageBox.Show("Tidak ada perubahan yang terdeteksi.", "Informasi", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("ID Pelanggan harus dimulai dengan '01' dan memiliki panjang total 3 atau 4 karakter (contoh: 01A, 01AB).", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtIdPelanggan.Focus();
                 return;
             }
 
-            // Confirmation dialog
+            // Client-side validation for Nama (only letters and spaces, based on trigger)
+            if (Regex.IsMatch(txtNama.Text, @"[^A-Za-z ]"))
+            {
+                MessageBox.Show("Nama Pelanggan hanya boleh berisi huruf dan spasi.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtNama.Focus();
+                return;
+            }
+
+            // Client-side validation for Email format (simple regex for basic check)
+            if (!Regex.IsMatch(txtEmail.Text, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+            {
+                MessageBox.Show("Format Email tidak valid. Contoh: nama@example.com", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtEmail.Focus();
+                return;
+            }
+
+            // Check for actual changes in Nama or Email before proceeding with update
+            if (txtNama.Text == oldNamaPelanggan && txtEmail.Text == oldEmailPelanggan)
+            {
+                MessageBox.Show("Tidak ada perubahan yang terdeteksi pada Nama atau Email.", "Informasi", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Confirmation dialog before updating
             if (MessageBox.Show("Apakah Anda yakin ingin mengupdate data ini?", "Konfirmasi Update", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
                 using (SqlConnection conn = new SqlConnection(connectionString))
@@ -189,19 +376,63 @@ namespace HOMEPAGE
                     {
                         try
                         {
+                            // Pre-emptive check if the new Email already exists for a different customer
+                            SqlCommand checkEmailExistsCmd = new SqlCommand("SELECT COUNT(1) FROM Pelanggan WHERE Email = @Email AND TRIM(ID_Pelanggan) <> @ID_Pelanggan", conn, tran);
+                            checkEmailExistsCmd.Parameters.AddWithValue("@Email", txtEmail.Text.Trim());
+                            checkEmailExistsCmd.Parameters.AddWithValue("@ID_Pelanggan", txtIdPelanggan.Text.Trim());
+                            int emailExistsCount = (int)checkEmailExistsCmd.ExecuteScalar();
+                            if (emailExistsCount > 0)
+                            {
+                                MessageBox.Show($"Gagal Mengupdate Data: Email '{txtEmail.Text.Trim()}' sudah digunakan oleh pelanggan lain. Silakan gunakan email lain.", "Kesalahan Input Data", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                tran.Rollback();
+                                txtEmail.Focus();
+                                return;
+                            }
+
+                            // Call the stored procedure to update data
                             SqlCommand cmd = new SqlCommand("sp_UpdatePelanggan", conn, tran)
                             {
                                 CommandType = CommandType.StoredProcedure
                             };
-                            cmd.Parameters.AddWithValue("@ID_Pelanggan", txtIdPelanggan.Text);
-                            cmd.Parameters.AddWithValue("@Nama", txtNama.Text);
-                            cmd.Parameters.AddWithValue("@Email", txtEmail.Text);
-                            cmd.ExecuteNonQuery();
+                            cmd.Parameters.AddWithValue("@ID_Pelanggan", txtIdPelanggan.Text.Trim()); // Use Trim() for consistency
+                            cmd.Parameters.AddWithValue("@Nama", txtNama.Text.Trim());
+                            cmd.Parameters.AddWithValue("@Email", txtEmail.Text.Trim());
+                            int rowsAffected = cmd.ExecuteNonQuery();
 
-                            tran.Commit();
-                            MessageBox.Show("Berhasil Mengupdate Data", "Informasi", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            cachePelanggan = null;
-                            LoadCachedData();
+                            if (rowsAffected == 0)
+                            {
+                                MessageBox.Show($"Data pelanggan dengan ID '{txtIdPelanggan.Text.Trim()}' tidak ditemukan untuk diupdate.", "Update Gagal", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                tran.Rollback(); // Rollback if no rows were affected (ID not found)
+                            }
+                            else
+                            {
+                                tran.Commit(); // Commit on successful update
+                                MessageBox.Show("Berhasil Mengupdate Data", "Informasi", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                cachePelanggan = null; // Invalidate cache
+                                LoadCachedData();      // Reload data
+                                ClearInputFields();    // Clear fields
+                            }
+                        }
+                        catch (SqlException ex)
+                        {
+                            tran.Rollback(); // Rollback on error
+                            string errorMessage = "Terjadi kesalahan saat mengupdate data pelanggan: ";
+                            switch (ex.Number)
+                            {
+                                case 2601: // Unique constraint violation (duplicate Email)
+                                    errorMessage += $"Email '{txtEmail.Text.Trim()}' sudah digunakan oleh pelanggan lain. Silakan gunakan email lain.";
+                                    break;
+                                case 50000: // Custom RAISERROR from triggers
+                                    errorMessage = ex.Message; // Use the specific message from the trigger
+                                    break;
+                                case 8152: // String or binary data would be truncated (e.g., Nama or Email too long)
+                                    errorMessage += "Nama atau Email terlalu panjang. Mohon periksa kembali input Anda.";
+                                    break;
+                                default:
+                                    errorMessage += $"Terjadi kesalahan database: {ex.Message}";
+                                    break;
+                            }
+                            MessageBox.Show(errorMessage, "Kesalahan Database", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                         catch (Exception ex)
                         {
@@ -215,13 +446,13 @@ namespace HOMEPAGE
 
         /// <summary>
         /// Handles the click event for the "Refresh" button.
-        /// Reloads the data from the database.
+        /// Reloads the data from the database and clears input fields.
         /// </summary>
         private void btnRefresh_Click(object sender, EventArgs e)
         {
             cachePelanggan = null; // Clear the cache to force a fresh load
-            TampilData();
             LoadCachedData(); // Re-populate the cache
+            ClearInputFields(); // Clear input fields after refresh
         }
 
         /// <summary>
@@ -232,22 +463,24 @@ namespace HOMEPAGE
         {
             try
             {
-                if (e.RowIndex >= 0 && dgvPelanggan.Rows[e.RowIndex].Cells.Count > 0)
+                // Ensure a valid row is clicked (not header or empty space)
+                if (e.RowIndex >= 0 && e.RowIndex < dgvPelanggan.Rows.Count)
                 {
                     DataGridViewRow row = dgvPelanggan.Rows[e.RowIndex];
 
-                    // CORRECTED: Changed "Nama_Pelanggan" to "Nama" based on DataGridView column headers
-                    txtIdPelanggan.Text = row.Cells["ID_Pelanggan"]?.Value?.ToString() ?? "";
+                    // Populate text boxes, trimming ID_Pelanggan as it's CHAR(4)
+                    txtIdPelanggan.Text = row.Cells["ID_Pelanggan"]?.Value?.ToString()?.Trim() ?? "";
                     txtNama.Text = row.Cells["Nama"]?.Value?.ToString() ?? "";
                     txtEmail.Text = row.Cells["Email"]?.Value?.ToString() ?? "";
 
-                    // Store the old name for update change detection
+                    // Store the current values as "old" for change detection during updates
                     oldNamaPelanggan = txtNama.Text;
+                    oldEmailPelanggan = txtEmail.Text;
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Gagal memilih data: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Gagal memilih data dari tabel: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -287,29 +520,56 @@ namespace HOMEPAGE
                     {
                         foreach (ICell cell in headerRow.Cells)
                         {
-                            dt.Columns.Add(cell.ToString());
+                            string colName = cell.ToString();
+                            // Ensure column names are unique and not empty
+                            if (!string.IsNullOrEmpty(colName) && !dt.Columns.Contains(colName))
+                            {
+                                dt.Columns.Add(colName);
+                            }
+                            else if (string.IsNullOrEmpty(colName))
+                            {
+                                dt.Columns.Add($"Column{dt.Columns.Count + 1}"); // Give a generic name for empty headers
+                            }
+                            else
+                            {
+                                int counter = 1;
+                                string uniqueColName = colName;
+                                while (dt.Columns.Contains(uniqueColName)) // Resolve duplicate names
+                                {
+                                    uniqueColName = $"{colName}_{counter++}";
+                                }
+                                dt.Columns.Add(uniqueColName);
+                            }
                         }
                     }
 
-                    // Read data rows
+                    // Read data rows, starting from the second row (index 1)
                     for (int i = 1; i <= sheet.LastRowNum; i++)
                     {
                         IRow row = sheet.GetRow(i);
                         if (row == null) continue; // Skip empty rows
 
                         DataRow newRow = dt.NewRow();
-                        for (int j = 0; j < dt.Columns.Count; j++) // Iterate based on DataTable columns, not header cells
+                        // Iterate based on DataTable columns, not Excel cells count, to avoid index out of bounds
+                        for (int j = 0; j < dt.Columns.Count; j++)
                         {
-                            newRow[j] = row.GetCell(j)?.ToString() ?? ""; // Handle null cells gracefully
+                            // Get cell value, handle nulls, and convert to string
+                            newRow[j] = row.GetCell(j)?.ToString() ?? "";
                         }
                         dt.Rows.Add(newRow);
                     }
 
                     // Assuming you have a PreviewDataPelanggan form for displaying imported data
+                    // Make sure PreviewDataPelanggan constructor accepts a DataTable
                     PreviewDataPelanggan preview = new PreviewDataPelanggan(dt);
                     preview.ShowDialog();
-                    TampilData(); // Refresh data after import preview
+                    cachePelanggan = null; // Invalidate cache after import to ensure fresh data is loaded
+                    LoadCachedData(); // Reload cached data in the main form
                 }
+            }
+            catch (IOException ex)
+            {
+                MessageBox.Show("Gagal membaca file Excel. Pastikan file tidak sedang dibuka oleh program lain dan lokasinya benar.\nDetail: " + ex.Message, "Error File Akses", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             catch (Exception ex)
             {
@@ -329,7 +589,7 @@ namespace HOMEPAGE
                 {
                     conn.Open();
 
-                    // 1. Get index information
+                    // 1. Get index information for the 'Pelanggan' table
                     string indexQuery = @"
                     SELECT
                         t.name AS TableName,
@@ -345,7 +605,7 @@ namespace HOMEPAGE
                     INNER JOIN
                         sys.tables t ON ind.object_id = t.object_id
                     WHERE
-                        t.name = 'Pelanggan' AND ind.is_primary_key = 0 AND ind.[type] <> 0
+                        t.name = 'Pelanggan' AND ind.is_primary_key = 0 AND ind.[type] <> 0 -- Exclude clustered index if it's the PK
                     ORDER BY
                         t.name, ind.name, ind.index_id;";
 
@@ -354,26 +614,40 @@ namespace HOMEPAGE
                     DataTable dtIndex = new DataTable();
                     da.Fill(dtIndex);
 
-                    // 2. Measure query execution time
-                    string selectQuery = "SELECT * FROM Pelanggan";
+                    // 2. Measure query execution time for a simple SELECT on 'Pelanggan'
+                    string selectQuery = "SELECT ID_Pelanggan, Nama, Email FROM Pelanggan";
                     SqlCommand cmd2 = new SqlCommand(selectQuery, conn);
                     Stopwatch stopwatch = new Stopwatch();
                     stopwatch.Start();
-                    cmd2.ExecuteReader().Close(); // Just execute and close to measure time
+                    // Using SqlDataReader to simulate actual data retrieval without loading into DataTable, 
+                    // which is more accurate for measuring raw query time.
+                    using (SqlDataReader reader = cmd2.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            // Just read to consume the results and measure performance
+                        }
+                    }
                     stopwatch.Stop();
 
                     long execTimeMs = stopwatch.ElapsedMilliseconds;
-                    string info = $"📌 Waktu Eksekusi Query: {execTimeMs} ms\n\n📦 Indeks:\n";
+                    string info = $"📌 Waktu Eksekusi Query 'SELECT ID_Pelanggan, Nama, Email FROM Pelanggan': {execTimeMs} ms\n\n📦 Indeks:\n";
 
-                    // 3. Display results
-                    foreach (DataRow row in dtIndex.Rows)
+                    // 3. Display analysis results
+                    if (dtIndex.Rows.Count == 0)
                     {
-                        info += $"- Tabel: {row["TableName"]}, Index: {row["IndexName"]}, Tipe: {row["IndexType"]}, Kolom: {row["ColumnName"]}\n";
+                        info += "Tidak ada indeks non-primary key yang ditemukan pada tabel Pelanggan.\n";
+                    }
+                    else
+                    {
+                        foreach (DataRow row in dtIndex.Rows)
+                        {
+                            info += $"- Tabel: {row["TableName"]}, Index: {row["IndexName"]}, Tipe: {row["IndexType"]}, Kolom: {row["ColumnName"]}\n";
+                        }
                     }
 
                     MessageBox.Show(info, "Analisis Query & Index", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
-
             }
             catch (Exception ex)
             {
@@ -389,19 +663,19 @@ namespace HOMEPAGE
         {
             HalamanMenu HalamanMenuForm = new HalamanMenu();
             HalamanMenuForm.Show();
-            this.Hide();
-            
+            this.Hide(); // Hide the current form
         }
 
-        // This event handler is empty and can be removed if not needed.
+        // This event handler is empty and can be removed if not needed for specific functionality.
         private void dgvPelanggan_CellContentClick(object sender, DataGridViewCellEventArgs e)
         {
-            // No implementation needed based on the pegawai code, can be removed if not used.
+            // This event is often less useful than CellClick for general data row selection.
+            // No specific implementation needed based on your requirements.
         }
 
         private void PELANGGAN_Load(object sender, EventArgs e)
         {
-
+            // Any specific initialization or logic needed when the form loads can be placed here.
         }
     }
 }
