@@ -30,6 +30,7 @@
         {
             this.dgvDataTransaksi = new System.Windows.Forms.DataGridView();
             this.oke = new System.Windows.Forms.Button();
+            this.IMPORT = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.dgvDataTransaksi)).BeginInit();
             this.SuspendLayout();
             // 
@@ -46,7 +47,7 @@
             // oke
             // 
             this.oke.Font = new System.Drawing.Font("Times New Roman", 10.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.oke.Location = new System.Drawing.Point(325, 345);
+            this.oke.Location = new System.Drawing.Point(264, 351);
             this.oke.Name = "oke";
             this.oke.Size = new System.Drawing.Size(120, 36);
             this.oke.TabIndex = 1;
@@ -54,12 +55,23 @@
             this.oke.UseVisualStyleBackColor = true;
             this.oke.Click += new System.EventHandler(this.oke_Click);
             // 
+            // IMPORT
+            // 
+            this.IMPORT.Location = new System.Drawing.Point(408, 351);
+            this.IMPORT.Name = "IMPORT";
+            this.IMPORT.Size = new System.Drawing.Size(120, 36);
+            this.IMPORT.TabIndex = 2;
+            this.IMPORT.Text = "IMPORT";
+            this.IMPORT.UseVisualStyleBackColor = true;
+            this.IMPORT.Click += new System.EventHandler(this.IMPORT_Click);
+            // 
             // PreviewDataTransaksi
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Azure;
             this.ClientSize = new System.Drawing.Size(800, 399);
+            this.Controls.Add(this.IMPORT);
             this.Controls.Add(this.oke);
             this.Controls.Add(this.dgvDataTransaksi);
             this.Name = "PreviewDataTransaksi";
@@ -73,5 +85,6 @@
 
         private System.Windows.Forms.DataGridView dgvDataTransaksi;
         private System.Windows.Forms.Button oke;
+        private System.Windows.Forms.Button IMPORT;
     }
 }

@@ -148,6 +148,7 @@
     <Compile Include="HalamanMenu.Designer.cs">
       <DependentUpon>HalamanMenu.cs</DependentUpon>
     </Compile>
+    <Compile Include="Koneksi.cs" />
     <Compile Include="PEGAWAI.cs">
       <SubType>Form</SubType>
     </Compile>

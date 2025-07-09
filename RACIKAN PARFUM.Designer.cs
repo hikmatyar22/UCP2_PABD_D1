@@ -216,6 +216,7 @@
             // txtIdRacikan
             // 
             this.txtIdRacikan.Location = new System.Drawing.Point(362, 188);
+            this.txtIdRacikan.MaxLength = 0;
             this.txtIdRacikan.Name = "txtIdRacikan";
             this.txtIdRacikan.Size = new System.Drawing.Size(295, 22);
             this.txtIdRacikan.TabIndex = 41;
@@ -246,7 +247,7 @@
             this.label9.Font = new System.Drawing.Font("Sylfaen", 19.8F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label9.Location = new System.Drawing.Point(397, 9);
             this.label9.Name = "label9";
-            this.label9.Size = new System.Drawing.Size(441, 44);
+            this.label9.Size = new System.Drawing.Size(426, 43);
             this.label9.TabIndex = 45;
             this.label9.Text = "DATA RACIKAN PARFUM\r\n";
             // 

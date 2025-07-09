@@ -63,7 +63,7 @@
             this.label1.Font = new System.Drawing.Font("Sylfaen", 19.8F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label1.Location = new System.Drawing.Point(167, 19);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(375, 88);
+            this.label1.Size = new System.Drawing.Size(364, 86);
             this.label1.TabIndex = 2;
             this.label1.Text = "SELAMAT DATANG \r\nPENJUALAN PARFUM";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;

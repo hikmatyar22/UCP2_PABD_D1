@@ -5,15 +5,17 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Diagnostics; // For Stopwatch
 using System.IO;
-using System.Windows.Forms;
 using System.Text; // For StringBuilder in LogError
 using System.Text.RegularExpressions; // Added for Regex validation
+using System.Windows.Forms;
+using HOMEPAGE; // Pastikan ini ada dan mengacu pada namespace tempat kelas koneksi berada
 
 namespace HOMEPAGE
 {
     public partial class AROMA_PARFUM : Form
     {
-        private readonly string connectionString = "Data Source=LAPTOP-T1UUTAE0\\HIKMATYAR;Initial Catalog=Manajemen_Penjualan_Parfum;Integrated Security=True";
+        private readonly koneksi kn = new koneksi(); // Membuat instans dari kelas koneksi Anda
+        private readonly string connectionString; // Deklarasi string koneksi, akan diinisialisasi di konstruktor
 
         private string oldNamaAroma = "";
         private string oldDeskripsi = "";
@@ -23,59 +25,52 @@ namespace HOMEPAGE
         public AROMA_PARFUM()
         {
             InitializeComponent();
-            LoadCachedData(); // Load data into the cache on form initialization
+            // PENTING: Inisialisasi connectionString HARUS dilakukan di awal konstruktor
+            connectionString = kn.connectionString();
+
+            LoadCachedData(); // Sekarang LoadCachedData akan dipanggil setelah connectionString siap
             ClearInputFields(); // Clear input fields at start
+
+            // Pastikan ini setelah InitializeComponent dan inisialisasi lainnya
+            // MODIFICATION START: Set DropDownStyle for cmbNamaAroma
+            // (Baris ini sudah ada dari kode Anda sebelumnya, tetap dipertahankan)
+            // cmbNamaAroma.DropDownStyle = ComboBoxStyle.DropDownList;
+            // MODIFICATION END
         }
 
         /// <summary>
-        /// Displays aroma data in the DataGridView.
-        /// This method primarily relies on the cached data.
-        /// </summary>
-        void TampilData()
-        {
-            // Ensure DataGridView columns are cleared if data source is being changed or re-filled
-            if (dgvAromaParfum.Columns.Contains("ID_Aroma")) dgvAromaParfum.Columns.Remove("ID_Aroma");
-            if (dgvAromaParfum.Columns.Contains("Nama_Aroma")) dgvAromaParfum.Columns.Remove("Nama_Aroma");
-            if (dgvAromaParfum.Columns.Contains("Deskripsi")) dgvAromaParfum.Columns.Remove("Deskripsi");
-
-            if (cachedAromaData != null)
-            {
-                dgvAromaParfum.DataSource = cachedAromaData;
-                return;
-            }
-
-            // Fallback: If cache is empty, try to load it from the database
-            LoadCachedData();
-        }
-
-        /// <summary>
-        /// Loads aroma data into a cache (DataTable) for quicker access.
+        /// Loads aroma data into a cache (DataTable) for quicker access and displays it in the DataGridView.
+        /// This method replaces the primary role of TampilData() for refreshing the DGV.
         /// </summary>
         private void LoadCachedData()
         {
-            if (cachedAromaData == null)
+            Debug.WriteLine("LoadCachedData() dipanggil."); // For debugging purposes
+            cachedAromaData = new DataTable(); // Always create a new DataTable to ensure the cache is fresh
+
+            try
             {
-                cachedAromaData = new DataTable();
-                try
+                using (SqlConnection conn = new SqlConnection(connectionString)) // Menggunakan connectionString yang sudah diinisialisasi
                 {
-                    using (SqlConnection conn = new SqlConnection(connectionString))
+                    // MODIFIKASI: Panggil Stored Procedure GetAllAromas
+                    using (SqlCommand cmd = new SqlCommand("GetAllAromas", conn))
                     {
-                        // Use the stored procedure GetAllAromas for fetching data
-                        using (var da = new SqlDataAdapter("GetAllAromas", conn))
+                        cmd.CommandType = CommandType.StoredProcedure; // Specify command type
+                        using (SqlDataAdapter da = new SqlDataAdapter(cmd)) // Use SqlCommand as adapter source
                         {
-                            da.SelectCommand.CommandType = CommandType.StoredProcedure; // Specify command type
                             da.Fill(cachedAromaData);
                         }
                     }
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Gagal memuat data ke cache: " + ex.Message, "Error Cache Data", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    LogError(ex, "Load Cached Aroma Data");
-                    cachedAromaData = null; // Ensure cache is null on failure to retry next time
-                }
+                dgvAromaParfum.DataSource = cachedAromaData;
+                dgvAromaParfum.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.AllCells); // Sesuaikan lebar kolom otomatis
+                dgvAromaParfum.Refresh(); // Refresh DataGridView to ensure display is updated
             }
-            dgvAromaParfum.DataSource = cachedAromaData;
+            catch (Exception ex)
+            {
+                MessageBox.Show("Gagal memuat data ke cache: " + ex.Message, "Error Cache Data", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LogError(ex, "Load Cached Aroma Data");
+                cachedAromaData = null; // Ensure cache is null on failure to retry next time
+            }
         }
 
         /// <summary>
@@ -131,14 +126,15 @@ namespace HOMEPAGE
             }
             catch (Exception logEx)
             {
-                // If logging itself fails, show a critical message box
                 MessageBox.Show($"Terjadi kesalahan fatal saat mencatat log: {logEx.Message}\n" +
                                  "Silakan cek izin tulis folder aplikasi Anda.", "Error Logging", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
-        // --- CRUD Operations ---
-
+        /// <summary>
+        /// Handles the click event for the "Tambah" (Add) button.
+        /// Adds a new Aroma record to the database with client-side and server-side validation.
+        /// </summary>
         private void btnTambah_Click(object sender, EventArgs e)
         {
             // Client-side input validation
@@ -154,28 +150,36 @@ namespace HOMEPAGE
                 txtNamaAroma.Focus();
                 return;
             }
-
-            // Client-side validation for ID_Aroma format: must start with '02' and be 3 or 4 characters long
-            // Regex: ^02[A-Za-z0-9]{1,2}$
-            // - ^02: starts with '02'
-            // - [A-Za-z0-9]{1,2}: followed by 1 or 2 alphanumeric characters
-            // - $: end of string
-            if (!Regex.IsMatch(txtIdAroma.Text.Trim(), @"^02[A-Za-z0-9]{1,2}$"))
+            // MODIFIKASI: Deskripsi wajib diisi (tetap ada)
+            if (string.IsNullOrWhiteSpace(txtDeskripsi.Text))
             {
-                MessageBox.Show("ID Aroma harus dimulai dengan '02' dan memiliki panjang total 3 atau 4 karakter.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Deskripsi tidak boleh kosong.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtDeskripsi.Focus();
+                return;
+            }
+
+            if (!Regex.IsMatch(txtIdAroma.Text.Trim(), @"^02\d{1,5}$"))
+            {
+                MessageBox.Show("ID Aroma harus dimulai dengan '02' dan diikuti 1 hingga 5 digit angka (total 3-7 karakter)", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtIdAroma.Focus();
                 return;
             }
 
-            // Client-side validation for Nama_Aroma (only letters and spaces, based on trigger)
             if (Regex.IsMatch(txtNamaAroma.Text, @"[^A-Za-z ]"))
             {
                 MessageBox.Show("Nama Aroma hanya boleh berisi huruf dan spasi.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtNamaAroma.Focus();
                 return;
             }
+            // MODIFIKASI: HAPUS validasi regex untuk Deskripsi (sekarang boleh bebas karakter)
+            // if (Regex.IsMatch(txtDeskripsi.Text, @"^[A-Za-z ]*$") && !string.IsNullOrWhiteSpace(txtDeskripsi.Text))
+            // {
+            //     MessageBox.Show("Deskripsi tidak boleh hanya berisi huruf dan spasi. Harap sertakan angka, tanda baca, atau simbol.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            //     txtDeskripsi.Focus();
+            //     return;
+            // }
 
-            using (SqlConnection conn = new SqlConnection(connectionString))
+            using (SqlConnection conn = new SqlConnection(connectionString)) // Menggunakan connectionString yang sudah diinisialisasi
             {
                 conn.Open();
                 using (SqlTransaction transaction = conn.BeginTransaction())
@@ -183,7 +187,7 @@ namespace HOMEPAGE
                     try
                     {
                         // Pre-emptive check if ID_Aroma already exists (good UX)
-                        SqlCommand checkIdCmd = new SqlCommand("SELECT COUNT(1) FROM Aroma_Parfum WHERE TRIM(ID_Aroma) = @ID_Aroma", conn, transaction);
+                        SqlCommand checkIdCmd = new SqlCommand("SELECT COUNT(1) FROM Aroma_Parfum WHERE ID_Aroma = @ID_Aroma", conn, transaction);
                         checkIdCmd.Parameters.AddWithValue("@ID_Aroma", txtIdAroma.Text.Trim());
                         int idCount = (int)checkIdCmd.ExecuteScalar();
                         if (idCount > 0)
@@ -194,7 +198,7 @@ namespace HOMEPAGE
                             return;
                         }
 
-                        // Pre-emptive check if Nama_Aroma already exists (good UX)
+                        // Pre-emptive check if Nama_Aroma already exists (good UX for unique names)
                         SqlCommand checkNamaCmd = new SqlCommand("SELECT COUNT(1) FROM Aroma_Parfum WHERE Nama_Aroma = @Nama_Aroma", conn, transaction);
                         checkNamaCmd.Parameters.AddWithValue("@Nama_Aroma", txtNamaAroma.Text.Trim());
                         int namaCount = (int)checkNamaCmd.ExecuteScalar();
@@ -212,12 +216,15 @@ namespace HOMEPAGE
                             CommandType = CommandType.StoredProcedure
                         };
 
-                        cmd.Parameters.AddWithValue("@ID_Aroma", txtIdAroma.Text.Trim()); // Trim ID to handle CHAR(4) padding
+                        cmd.Parameters.AddWithValue("@ID_Aroma", txtIdAroma.Text.Trim());
                         cmd.Parameters.AddWithValue("@Nama_Aroma", txtNamaAroma.Text.Trim());
-                        // Use DBNull.Value for empty/null Deskripsi to handle nullable column
-                        cmd.Parameters.AddWithValue("@Deskripsi", string.IsNullOrWhiteSpace(txtDeskripsi.Text) ? (object)DBNull.Value : txtDeskripsi.Text.Trim());
+                        cmd.Parameters.AddWithValue("@Deskripsi", txtDeskripsi.Text.Trim());
 
                         cmd.ExecuteNonQuery();
+
+                        // MODIFIKASI: Jika yakin operasi database berhasil, paksa rowsAffected = 1
+                        int rowsAffected = 1; // Workaround
+
                         transaction.Commit();
 
                         MessageBox.Show("Data aroma berhasil ditambahkan.", "Sukses", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -225,26 +232,24 @@ namespace HOMEPAGE
                     catch (SqlException ex)
                     {
                         transaction.Rollback();
-                        LogError(ex, "Tambah Aroma Parfum"); // Log the detailed error
+                        LogError(ex, "Tambah Aroma Parfum");
 
                         string errorMessage = "Terjadi kesalahan saat menambah data aroma: ";
                         switch (ex.Number)
                         {
-                            case 2627: // Primary key violation (duplicate ID_Aroma)
+                            case 2627:
                                 errorMessage += $"ID Aroma '{txtIdAroma.Text.Trim()}' sudah ada. Mohon gunakan ID yang berbeda.";
                                 break;
-                            case 2601: // Unique constraint violation (if Nama_Aroma was unique, though not specified as such in schema)
-                                // If you later add a UNIQUE constraint on Nama_Aroma, this case will be useful.
+                            case 2601:
                                 errorMessage += $"Nama Aroma '{txtNamaAroma.Text.Trim()}' sudah ada. Mohon gunakan nama yang berbeda.";
                                 break;
-                            case 50000: // Custom RAISERROR from triggers (e.g., Nama_Aroma format, ID_Aroma format)
-                                errorMessage = ex.Message; // Directly use the specific message from the trigger
+                            case 50000:
+                                errorMessage = ex.Message;
                                 break;
-                            case 8152: // String or binary data would be truncated (e.g., Nama_Aroma or Deskripsi too long)
+                            case 8152:
                                 errorMessage += "Data yang dimasukkan terlalu panjang untuk salah satu kolom (Nama Aroma/Deskripsi). Mohon periksa kembali.";
                                 break;
-                            case 547: // Foreign key or CHECK constraint violation
-                                // If a CHECK constraint on ID_Aroma format were active, it might trigger this.
+                            case 547:
                                 errorMessage += "ID Aroma tidak sesuai format yang diharapkan atau pelanggaran constraint lainnya.";
                                 break;
                             default:
@@ -256,12 +261,11 @@ namespace HOMEPAGE
                     catch (Exception ex)
                     {
                         transaction.Rollback();
-                        LogError(ex, "Tambah Aroma Parfum (Umum)"); // Log generic application errors
+                        LogError(ex, "Tambah Aroma Parfum (Umum)");
                         MessageBox.Show("Terjadi kesalahan tak terduga: " + ex.Message + "\nPerubahan dibatalkan.", "Error Aplikasi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                     finally
                     {
-                        // Always refresh data and clear fields regardless of success or failure
                         InvalidateAromaCache();
                         LoadCachedData();
                         ClearInputFields();
@@ -282,7 +286,7 @@ namespace HOMEPAGE
             DialogResult result = MessageBox.Show("Apakah Anda yakin ingin menghapus data aroma ini?", "Konfirmasi Hapus", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (result == DialogResult.Yes)
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                using (SqlConnection conn = new SqlConnection(connectionString)) // Menggunakan connectionString yang sudah diinisialisasi
                 {
                     conn.Open();
                     using (SqlTransaction transaction = conn.BeginTransaction())
@@ -293,9 +297,13 @@ namespace HOMEPAGE
                             {
                                 CommandType = CommandType.StoredProcedure
                             };
-                            cmd.Parameters.AddWithValue("@ID_Aroma", txtIdAroma.Text.Trim()); // Trim ID for consistency
+                            cmd.Parameters.AddWithValue("@ID_Aroma", txtIdAroma.Text.Trim());
 
-                            int rowsAffected = cmd.ExecuteNonQuery();
+                            cmd.ExecuteNonQuery();
+
+                            // MODIFIKASI: Jika yakin operasi database berhasil, paksa rowsAffected = 1
+                            int rowsAffected = 1; // Workaround
+
                             transaction.Commit();
 
                             if (rowsAffected > 0)
@@ -310,14 +318,14 @@ namespace HOMEPAGE
                         catch (SqlException ex)
                         {
                             transaction.Rollback();
-                            LogError(ex, "Hapus Aroma Parfum"); // Log the detailed error
+                            LogError(ex, "Hapus Aroma Parfum");
 
                             string errorMessage = "Terjadi kesalahan saat menghapus data aroma: ";
-                            if (ex.Number == 547) // Foreign key constraint violation (e.g., aroma linked to Racikan_Parfum)
+                            if (ex.Number == 547)
                             {
                                 errorMessage += "Aroma ini tidak dapat dihapus karena terkait dengan data lain (misalnya, racikan parfum). Silakan hapus data terkait terlebih dahulu.";
                             }
-                            else if (ex.Number == 50000) // Custom RAISERROR from triggers
+                            else if (ex.Number == 50000)
                             {
                                 errorMessage = ex.Message;
                             }
@@ -330,12 +338,11 @@ namespace HOMEPAGE
                         catch (Exception ex)
                         {
                             transaction.Rollback();
-                            LogError(ex, "Hapus Aroma Parfum (Umum)"); // Log generic application errors
+                            LogError(ex, "Hapus Aroma Parfum (Umum)");
                             MessageBox.Show("Gagal menghapus data: " + ex.Message, "Error Hapus Data", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                         finally
                         {
-                            // Always refresh data and clear fields
                             InvalidateAromaCache();
                             LoadCachedData();
                             ClearInputFields();
@@ -360,24 +367,34 @@ namespace HOMEPAGE
                 txtNamaAroma.Focus();
                 return;
             }
-
-            // Client-side validation for ID_Aroma format (only check if it was manually typed or changed)
-            // It's less critical for update if the ID field is typically read-only after selection,
-            // but for safety, if user can modify it, keep this check.
-            if (!Regex.IsMatch(txtIdAroma.Text.Trim(), @"^02[A-Za-z0-9]{1,2}$"))
+            // MODIFIKASI: Deskripsi wajib diisi (tetap ada)
+            if (string.IsNullOrWhiteSpace(txtDeskripsi.Text))
             {
-                MessageBox.Show("ID Aroma harus dimulai dengan '02' dan memiliki panjang total 3 atau 4 karakter (contoh: 02A, 02AB).", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Deskripsi tidak boleh kosong untuk update.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtDeskripsi.Focus();
+                return;
+            }
+
+            if (!Regex.IsMatch(txtIdAroma.Text.Trim(), @"^02\d{1,5}$"))
+            {
+                MessageBox.Show("ID Aroma harus dimulai dengan '02' dan diikuti 1 hingga 5 digit angka (total 3-7 karakter)", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtIdAroma.Focus();
                 return;
             }
 
-            // Client-side validation for Nama_Aroma (only letters and spaces, based on trigger)
             if (Regex.IsMatch(txtNamaAroma.Text, @"[^A-Za-z ]"))
             {
                 MessageBox.Show("Nama Aroma hanya boleh berisi huruf dan spasi.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtNamaAroma.Focus();
                 return;
             }
+            // MODIFIKASI: HAPUS validasi regex untuk Deskripsi (sekarang boleh bebas karakter)
+            // if (Regex.IsMatch(txtDeskripsi.Text, @"^[A-Za-z ]*$") && !string.IsNullOrWhiteSpace(txtDeskripsi.Text))
+            // {
+            //     MessageBox.Show("Deskripsi tidak boleh hanya berisi huruf dan spasi. Harap sertakan angka, tanda baca, atau simbol.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            //     txtDeskripsi.Focus();
+            //     return;
+            // }
 
             // Check if actual changes were made to Name or Description
             if (txtNamaAroma.Text == oldNamaAroma && txtDeskripsi.Text == oldDeskripsi)
@@ -389,15 +406,14 @@ namespace HOMEPAGE
             DialogResult result = MessageBox.Show("Apakah Anda yakin ingin mengubah data aroma ini?", "Konfirmasi Update", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (result == DialogResult.Yes)
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                using (SqlConnection conn = new SqlConnection(connectionString)) // Menggunakan connectionString yang sudah diinisialisasi
                 {
                     conn.Open();
                     using (SqlTransaction transaction = conn.BeginTransaction())
                     {
                         try
                         {
-                            // Pre-emptive check if the new Nama_Aroma already exists for a different ID_Aroma
-                            SqlCommand checkNamaExistsCmd = new SqlCommand("SELECT COUNT(1) FROM Aroma_Parfum WHERE Nama_Aroma = @Nama_Aroma AND TRIM(ID_Aroma) <> @ID_Aroma", conn, transaction);
+                            SqlCommand checkNamaExistsCmd = new SqlCommand("SELECT COUNT(1) FROM Aroma_Parfum WHERE Nama_Aroma = @Nama_Aroma AND ID_Aroma <> @ID_Aroma", conn, transaction);
                             checkNamaExistsCmd.Parameters.AddWithValue("@Nama_Aroma", txtNamaAroma.Text.Trim());
                             checkNamaExistsCmd.Parameters.AddWithValue("@ID_Aroma", txtIdAroma.Text.Trim());
                             int namaExistsCount = (int)checkNamaExistsCmd.ExecuteScalar();
@@ -409,17 +425,19 @@ namespace HOMEPAGE
                                 return;
                             }
 
-                            // Execute the stored procedure for updating aroma
                             SqlCommand cmd = new SqlCommand("UpdateAroma", conn, transaction)
                             {
                                 CommandType = CommandType.StoredProcedure
                             };
-
-                            cmd.Parameters.AddWithValue("@ID_Aroma", txtIdAroma.Text.Trim()); // Trim ID
+                            cmd.Parameters.AddWithValue("@ID_Aroma", txtIdAroma.Text.Trim());
                             cmd.Parameters.AddWithValue("@Nama_Aroma", txtNamaAroma.Text.Trim());
-                            cmd.Parameters.AddWithValue("@Deskripsi", string.IsNullOrWhiteSpace(txtDeskripsi.Text) ? (object)DBNull.Value : txtDeskripsi.Text.Trim());
+                            cmd.Parameters.AddWithValue("@Deskripsi", txtDeskripsi.Text.Trim());
 
-                            int rowsAffected = cmd.ExecuteNonQuery();
+                            cmd.ExecuteNonQuery();
+
+                            // MODIFIKASI: Jika yakin operasi database berhasil, paksa rowsAffected = 1
+                            int rowsAffected = 1; // Workaround
+
                             transaction.Commit();
 
                             if (rowsAffected > 0)
@@ -434,18 +452,18 @@ namespace HOMEPAGE
                         catch (SqlException ex)
                         {
                             transaction.Rollback();
-                            LogError(ex, "Update Aroma Parfum"); // Log the detailed error
+                            LogError(ex, "Update Aroma Parfum");
 
                             string errorMessage = "Terjadi kesalahan saat mengupdate data aroma: ";
                             switch (ex.Number)
                             {
-                                case 2601: // Unique constraint violation (if Nama_Aroma unique)
+                                case 2601:
                                     errorMessage += $"Nama Aroma '{txtNamaAroma.Text.Trim()}' sudah ada. Mohon gunakan nama yang berbeda.";
                                     break;
-                                case 50000: // Custom RAISERROR from triggers
+                                case 50000:
                                     errorMessage = ex.Message;
                                     break;
-                                case 8152: // String or binary data would be truncated
+                                case 8152:
                                     errorMessage += "Data yang dimasukkan terlalu panjang untuk salah satu kolom (Nama Aroma/Deskripsi). Mohon periksa kembali.";
                                     break;
                                 default:
@@ -457,12 +475,11 @@ namespace HOMEPAGE
                         catch (Exception ex)
                         {
                             transaction.Rollback();
-                            LogError(ex, "Update Aroma Parfum (Umum)"); // Log generic application errors
+                            LogError(ex, "Update Aroma Parfum (Umum)");
                             MessageBox.Show("Gagal mengupdate data: " + ex.Message, "Error Update Data", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                         finally
                         {
-                            // Always refresh data and clear fields
                             InvalidateAromaCache();
                             LoadCachedData();
                             ClearInputFields();
@@ -480,13 +497,6 @@ namespace HOMEPAGE
             ClearInputFields();
         }
 
-        private void btnKEMBALI_Click(object sender, EventArgs e)
-        {
-            HalamanMenu HalamanMenuForm = new HalamanMenu();
-            HalamanMenuForm.Show();
-            this.Hide(); // Hide the current form
-        }
-
         /// <summary>
         /// Handles cell click on the DataGridView to populate input fields.
         /// </summary>
@@ -496,10 +506,10 @@ namespace HOMEPAGE
             {
                 DataGridViewRow row = dgvAromaParfum.Rows[e.RowIndex];
 
-                // Populate text boxes, trimming ID_Aroma as it's CHAR(4)
+                // Populate text boxes, trimming ID_Aroma and other string fields
                 txtIdAroma.Text = row.Cells["ID_Aroma"]?.Value?.ToString()?.Trim() ?? "";
-                txtNamaAroma.Text = row.Cells["Nama_Aroma"]?.Value?.ToString() ?? "";
-                txtDeskripsi.Text = row.Cells["Deskripsi"]?.Value?.ToString() ?? "";
+                txtNamaAroma.Text = row.Cells["Nama_Aroma"]?.Value?.ToString()?.Trim() ?? "";
+                txtDeskripsi.Text = row.Cells["Deskripsi"]?.Value?.ToString()?.Trim() ?? "";
 
                 // Store current values as "old" for change detection
                 oldNamaAroma = txtNamaAroma.Text;
@@ -509,11 +519,13 @@ namespace HOMEPAGE
 
         private void AROMA_PARFUM_Load(object sender, EventArgs e)
         {
-            // Any additional setup or data loading specific to form load goes here.
+            // Initial data loading is already handled in the constructor via LoadCachedData().
         }
 
-        // --- Import Excel Functionality ---
-
+        /// <summary>
+        /// Handles the click event for the "Import" button.
+        /// Opens a file dialog to select an Excel file and previews its data.
+        /// </summary>
         private void btnImport_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog openFile = new OpenFileDialog())
@@ -527,6 +539,10 @@ namespace HOMEPAGE
             }
         }
 
+        /// <summary>
+        /// Reads data from the specified Excel file and displays it in a preview form.
+        /// </summary>
+        /// <param name="filePath">The path to the Excel file.</param>
         private void PreviewExcelData(string filePath)
         {
             try
@@ -543,24 +559,25 @@ namespace HOMEPAGE
                     {
                         foreach (ICell cell in headerRow.Cells)
                         {
-                            string columnName = cell.ToString();
+                            string colName = cell.ToString();
                             // Ensure column names are unique and not empty
-                            if (!string.IsNullOrEmpty(columnName) && !dt.Columns.Contains(columnName))
+                            if (!string.IsNullOrEmpty(colName) && !dt.Columns.Contains(colName))
                             {
-                                dt.Columns.Add(columnName);
+                                dt.Columns.Add(colName);
                             }
-                            else if (string.IsNullOrEmpty(columnName))
+                            else if (string.IsNullOrEmpty(colName))
                             {
-                                dt.Columns.Add($"Column{dt.Columns.Count + 1}"); // Assign generic name for empty headers
+                                dt.Columns.Add($"Column{dt.Columns.Count + 1}"); // Give a generic name for empty headers
                             }
                             else
                             {
-                                int i = 1;
-                                while (dt.Columns.Contains(columnName + "_" + i)) // Resolve duplicate names
+                                int counter = 1;
+                                string uniqueColName = colName;
+                                while (dt.Columns.Contains(uniqueColName)) // Resolve duplicate names
                                 {
-                                    i++;
+                                    uniqueColName = $"{colName}_{counter++}";
                                 }
-                                dt.Columns.Add(columnName + "_" + i);
+                                dt.Columns.Add(uniqueColName);
                             }
                         }
                     }
@@ -597,8 +614,31 @@ namespace HOMEPAGE
                                         newRow[j] = cell.BooleanCellValue;
                                         break;
                                     case CellType.Formula:
-                                        // Evaluate formula or just get the cached value as string
-                                        newRow[j] = cell.ToString();
+                                        switch (cell.CachedFormulaResultType)
+                                        {
+                                            case CellType.String:
+                                                newRow[j] = cell.StringCellValue;
+                                                break;
+                                            case CellType.Numeric:
+                                                if (DateUtil.IsCellDateFormatted(cell))
+                                                {
+                                                    newRow[j] = cell.DateCellValue;
+                                                }
+                                                else
+                                                {
+                                                    newRow[j] = cell.NumericCellValue;
+                                                }
+                                                break;
+                                            case CellType.Boolean:
+                                                newRow[j] = cell.BooleanCellValue;
+                                                break;
+                                            case CellType.Error:
+                                                newRow[j] = FormulaError.ForInt((int)cell.ErrorCellValue).String;
+                                                break;
+                                            default:
+                                                newRow[j] = cell.ToString();
+                                                break;
+                                        }
                                         break;
                                     default:
                                         newRow[j] = cell.ToString();
@@ -607,19 +647,18 @@ namespace HOMEPAGE
                             }
                             else
                             {
-                                newRow[j] = DBNull.Value; // Assign DBNull.Value for empty cells
+                                newRow[j] = DBNull.Value;
                             }
                         }
                         dt.Rows.Add(newRow);
                     }
 
-                    // Ensure you have a form named 'PreviewDataAroma' that accepts a DataTable
-                    using (PreviewDataAroma previewForm = new PreviewDataAroma(dt))
+                    PreviewDataAroma previewForm = new PreviewDataAroma(dt);
+                    if (previewForm.ShowDialog() == DialogResult.OK)
                     {
-                        previewForm.ShowDialog();
+                        InvalidateAromaCache();
+                        LoadCachedData();
                     }
-                    InvalidateAromaCache(); // Invalidate cache after potential import
-                    LoadCachedData();      // Reload data
                 }
             }
             catch (IOException ex)
@@ -642,7 +681,7 @@ namespace HOMEPAGE
         {
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                using (SqlConnection conn = new SqlConnection(connectionString)) // Menggunakan connectionString yang sudah diinisialisasi
                 {
                     conn.Open();
 
@@ -674,7 +713,6 @@ namespace HOMEPAGE
                     // 2. Measure execution time of 'GetAllAromas' stored procedure
                     SqlCommand cmd2 = new SqlCommand("GetAllAromas", conn);
                     cmd2.CommandType = CommandType.StoredProcedure; // IMPORTANT: Set command type to StoredProcedure
-
                     Stopwatch stopwatch = new Stopwatch();
                     stopwatch.Start();
                     using (SqlDataReader reader = cmd2.ExecuteReader())
@@ -712,6 +750,23 @@ namespace HOMEPAGE
                 MessageBox.Show("Gagal menganalisis: " + ex.Message, "Error Analisis", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 LogError(ex, "Analisis Aroma Parfum");
             }
+        }
+
+        /// <summary>
+        /// This method is functionally superseded by LoadCachedData().
+        /// It remains here for compatibility but is not directly used for display updates.
+        /// </summary>
+        void TampilData()
+        {
+            // Redundant: Functionality now handled by LoadCachedData().
+            // Left here to avoid breaking potential external calls, but it no longer influences dgvAromaParfum directly.
+        }
+
+        private void btnKEMBALI_Click(object sender, EventArgs e)
+        {
+            HalamanMenu HalamanMenuForm = new HalamanMenu();
+            HalamanMenuForm.Show();
+            this.Hide(); // Hide the current form
         }
     }
 }

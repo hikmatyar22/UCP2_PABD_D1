@@ -55,7 +55,7 @@
             this.dgvPelanggan.Name = "dgvPelanggan";
             this.dgvPelanggan.RowHeadersWidth = 51;
             this.dgvPelanggan.RowTemplate.Height = 24;
-            this.dgvPelanggan.Size = new System.Drawing.Size(472, 410);
+            this.dgvPelanggan.Size = new System.Drawing.Size(585, 410);
             this.dgvPelanggan.TabIndex = 32;
             this.dgvPelanggan.CellClick += new System.Windows.Forms.DataGridViewCellEventHandler(this.dgvPelanggan_CellClick);
             this.dgvPelanggan.CellContentClick += new System.Windows.Forms.DataGridViewCellEventHandler(this.dgvPelanggan_CellContentClick);
@@ -121,6 +121,7 @@
             // txtIdPelanggan
             // 
             this.txtIdPelanggan.Location = new System.Drawing.Point(168, 124);
+            this.txtIdPelanggan.MaxLength = 0;
             this.txtIdPelanggan.Name = "txtIdPelanggan";
             this.txtIdPelanggan.Size = new System.Drawing.Size(280, 22);
             this.txtIdPelanggan.TabIndex = 25;
@@ -172,7 +173,7 @@
             this.label4.Font = new System.Drawing.Font("Sylfaen", 19.8F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.label4.Location = new System.Drawing.Point(314, 18);
             this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(341, 44);
+            this.label4.Size = new System.Drawing.Size(327, 43);
             this.label4.TabIndex = 34;
             this.label4.Text = "DATA PELANGGAN";
             // 
@@ -203,7 +204,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Azure;
-            this.ClientSize = new System.Drawing.Size(938, 504);
+            this.ClientSize = new System.Drawing.Size(1114, 504);
             this.Controls.Add(this.Analisis);
             this.Controls.Add(this.import);
             this.Controls.Add(this.label4);

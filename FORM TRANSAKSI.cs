@@ -2,32 +2,39 @@
 using System.Data;
 using System.Data.SqlClient;
 using System.Windows.Forms;
-using HOMEPAGE;
+using HOMEPAGE; // Pastikan ini ada
 using Microsoft.Reporting.WinForms;
+using System.IO; // Tambahkan ini untuk Path.Combine
 
 namespace CRUDRmas
 {
     public partial class FORMTRANSAKSI : Form
     {
+        private koneksi kn = new koneksi(); // Tambahkan ini
+        private string connectionString; // Deklarasi string koneksi
+
         public FORMTRANSAKSI()
         {
             InitializeComponent();
+            connectionString = kn.connectionString(); // Inisialisasi connectionString di konstruktor
         }
 
         private void FORMTRANSAKSI_Load_1(object sender, EventArgs e)
         {
             // Setup ReportViewer data
             SetupReportViewer();
-            // Refresh report to display data
-            this.reportViewer1.RefreshReport();
+            // Refresh report to display data (ini akan dipanggil lagi di SetupReportViewer, bisa dihapus di sini jika tidak perlu refresh ganda)
+            // this.reportViewer1.RefreshReport(); // Opsional: bisa dihapus jika refresh di SetupReportViewer() sudah cukup
         }
 
         private void SetupReportViewer()
         {
             // Connection string to your database
-            string connectionString = "Data Source=LAPTOP-T1UUTAE0\\HIKMATYAR;Initial Catalog=Manajemen_Penjualan_Parfum;Integrated Security=True";
+            // Ganti baris ini: string connectionString = "Data Source=LAPTOP-T1UUTAE0\\HIKMATYAR;Initial Catalog=Manajemen_Penjualan_Parfum;Integrated Security=True";
+            string connectionString = kn.connectionString(); // Gunakan connection string dinamis
 
             // SQL query to retrieve the required data from the database
+            // MODIFIKASI PENTING: Tambahkan ORDER BY untuk pengurutan numerik ID_Transaksi
             string query = @"
 SELECT
     t.ID_Transaksi,
@@ -37,7 +44,9 @@ SELECT
 FROM
     Transaksi t
 JOIN
-    Pelanggan p ON t.ID_Pelanggan = p.ID_Pelanggan";
+    Pelanggan p ON t.ID_Pelanggan = p.ID_Pelanggan
+ORDER BY
+    CAST(SUBSTRING(t.ID_Transaksi, 3, LEN(t.ID_Transaksi) - 2) AS INT)"; // Urutkan berdasarkan bagian numerik setelah '05'
 
             // Create a DataTable to store the data
             DataTable dt = new DataTable();
@@ -58,8 +67,8 @@ JOIN
             reportViewer1.LocalReport.DataSources.Add(rds);
 
             // Set the path to the report (.rdlc file)
-            // Change this to the actual path of your RDLC file
-            reportViewer1.LocalReport.ReportPath = @"C:\Users\Lenovo\Pictures\HOMEPAGE\HOMEPAGE\ReportTransaksi.rdlc";
+            // Ubah path .rdlc agar dinamis, menggunakan Path.Combine dan BaseDirectory
+            reportViewer1.LocalReport.ReportPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ReportTransaksi.rdlc");
 
             // Refresh the ReportViewer to show the updated report
             reportViewer1.RefreshReport();
@@ -67,7 +76,7 @@ JOIN
 
         private void reportViewer1_Load(object sender, EventArgs e)
         {
-
+            // Tidak ada implementasi spesifik yang diperlukan di sini.
         }
 
         private void btnOKE_Click(object sender, EventArgs e)

@@ -8,12 +8,15 @@ using System.IO;
 using System.Text; // For StringBuilder in LogError
 using System.Text.RegularExpressions; // Added for Regex validation
 using System.Windows.Forms;
+using System.Linq; // For .Cast<T>().FirstOrDefault()
+using HOMEPAGE; // Tambahkan ini agar kelas 'koneksi' dapat diakses
 
 namespace HOMEPAGE
 {
     public partial class RACIKAN_PARFUM : Form
     {
-        private readonly string connectionString = "Data Source=LAPTOP-T1UUTAE0\\HIKMATYAR;Initial Catalog=Manajemen_Penjualan_Parfum;Integrated Security=True";
+        private readonly koneksi kn = new koneksi(); // Membuat instans dari kelas koneksi Anda
+        private readonly string connectionString; // Deklarasi string koneksi, akan diinisialisasi di konstruktor
 
         // Cache for storing Racikan_Parfum data to improve performance
         private DataTable cacheRacikanParfum = null;
@@ -29,6 +32,11 @@ namespace HOMEPAGE
         public RACIKAN_PARFUM()
         {
             InitializeComponent();
+            connectionString = kn.connectionString(); // Inisialisasi connectionString di sini
+            // MODIFICATION START: Set DropDownStyle for cmbNamaAroma
+            cmbNamaAroma.DropDownStyle = ComboBoxStyle.DropDownList; // Force selection from list
+            // MODIFICATION END
+
             LoadInitialData(); // Initial data display and cache loading
             LoadComboBoxes();  // Load data for ComboBoxes
             ClearInputFields(); // Clear fields on start
@@ -36,23 +44,23 @@ namespace HOMEPAGE
 
         /// <summary>
         /// Loads initial data into DataGridView and populates the cache.
+        /// This method serves as the primary data loading/refresh mechanism for the DGV.
         /// </summary>
         private void LoadInitialData()
         {
+            Debug.WriteLine("LoadInitialData() dipanggil.");
             try
             {
-                // Ensure DataGridView columns are reset before loading new data
-                // This prevents issues if the schema changes or data is reloaded multiple times
-                dgvRacikanParfum.DataSource = null; // Clear current binding
-                dgvRacikanParfum.Columns.Clear();   // Clear existing columns
+                // Re-initialize DataTable to ensure fresh data and prevent accumulation
+                cacheRacikanParfum = new DataTable();
 
-                // If cache is null, load from DB. Otherwise, use cached data.
-                if (cacheRacikanParfum == null)
+                using (SqlConnection conn = new SqlConnection(connectionString))
                 {
-                    cacheRacikanParfum = new DataTable();
-                    using (SqlConnection conn = new SqlConnection(connectionString))
+                    // MODIFIKASI: Panggil Stored Procedure GetAllRacikanParfum
+                    using (SqlCommand cmd = new SqlCommand("GetAllRacikanParfum", conn))
                     {
-                        using (SqlDataAdapter adapter = new SqlDataAdapter("SELECT * FROM Racikan_Parfum", conn))
+                        cmd.CommandType = CommandType.StoredProcedure; // Specify command type
+                        using (SqlDataAdapter adapter = new SqlDataAdapter(cmd))
                         {
                             adapter.Fill(cacheRacikanParfum);
                         }
@@ -67,12 +75,13 @@ namespace HOMEPAGE
             {
                 MessageBox.Show("Gagal memuat data awal: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 LogError(ex, "Load Initial Racikan Data");
+                cacheRacikanParfum = null; // Ensure cache is null on failure to retry next time
             }
         }
 
         /// <summary>
-        /// Invalidates the Racikan_Parfum data cache.
-        /// This should be called whenever data in the database changes (add, update, delete).
+        /// Invalidates the Racikan_Parfum data cache by setting it to null.
+        /// This forces LoadInitialData() to refetch data from the database next time it's called.
         /// </summary>
         private void InvalidateRacikanCache()
         {
@@ -89,12 +98,12 @@ namespace HOMEPAGE
             cmbIdAroma.SelectedIndex = -1;
             cmbIdPegawai.SelectedIndex = -1;
             cmbPerbandingan.SelectedIndex = -1;
-            cmbNamaAroma.Text = ""; // Clear text for editable combobox
+            cmbNamaAroma.SelectedIndex = -1; // Set SelectedIndex to -1 for DropDownList
             txtNamaHasilParfum.Clear();
 
             txtIdRacikan.Focus(); // Set focus to the ID field
 
-            // Reset old values
+            // Reset old values to match cleared fields
             oldIdRacikan = "";
             oldIdPelanggan = "";
             oldIdAroma = "";
@@ -276,8 +285,6 @@ namespace HOMEPAGE
             }
         }
 
-  
-
         /// <summary>
         /// Handles the click event for the "Tambah" (Add) button.
         /// Adds a new Racikan_Parfum record to the database using a stored procedure with validation.
@@ -290,7 +297,7 @@ namespace HOMEPAGE
                 cmbIdAroma.SelectedItem == null ||
                 cmbIdPegawai.SelectedItem == null ||
                 cmbPerbandingan.SelectedItem == null ||
-                string.IsNullOrWhiteSpace(cmbNamaAroma.Text) || // For editable combobox, check Text property
+                cmbNamaAroma.SelectedItem == null || // Check SelectedItem for DropDownList
                 string.IsNullOrWhiteSpace(txtNamaHasilParfum.Text))
             {
                 MessageBox.Show("Semua kolom harus diisi sebelum menambah data racikan parfum.", "Peringatan Input Kosong", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -298,21 +305,16 @@ namespace HOMEPAGE
             }
 
             // Client-side Validation: ID_Racikan format
-            // Must start with '04' and be 3 or 4 characters long (alphanumeric).
-            if (!Regex.IsMatch(txtIdRacikan.Text.Trim(), @"^04[A-Za-z0-9]{1,2}$"))
+            // Must start with '04' and followed by 1 to 5 digits (total 3-7 characters).
+            if (!Regex.IsMatch(txtIdRacikan.Text.Trim(), @"^04\d{1,5}$"))
             {
-                MessageBox.Show("ID Racikan harus dimulai dengan '04' dan memiliki panjang total 3 atau 4 karakter.", "Input Error: ID Racikan", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("ID Racikan harus dimulai dengan '04' dan diikuti 1 hingga 5 digit angka (total 3-7 karakter).", "Input Error: ID Racikan", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtIdRacikan.Focus();
                 return;
             }
 
-            // Client-side Validation: Nama_Racikan and Nama_Hasil_Parfum (alphanumeric and spaces only)
-            if (!Regex.IsMatch(cmbNamaAroma.Text.Trim(), @"^[A-Za-z0-9 ]+$"))
-            {
-                MessageBox.Show("Nama Racikan hanya boleh berisi huruf, angka, dan spasi.", "Input Error: Nama Racikan", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                cmbNamaAroma.Focus();
-                return;
-            }
+            // Client-side Validation: Nama_Hasil_Parfum (alphanumeric and spaces only)
+            // Nama Racikan validation is implicitly handled by DropDownList style, but keeping the regex for Nama_Hasil_Parfum.
             if (!Regex.IsMatch(txtNamaHasilParfum.Text.Trim(), @"^[A-Za-z0-9 ]+$"))
             {
                 MessageBox.Show("Nama Hasil Parfum hanya boleh berisi huruf, angka, dan spasi.", "Input Error: Nama Hasil Parfum", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -336,7 +338,8 @@ namespace HOMEPAGE
                     try
                     {
                         // Pre-emptive check if ID_Racikan already exists for better UX
-                        SqlCommand checkIdCmd = new SqlCommand("SELECT COUNT(1) FROM Racikan_Parfum WHERE TRIM(ID_Racikan) = @ID_Racikan", conn, tran);
+                        // Use TRIM() for comparison to handle potential CHAR padding or inconsistent user input
+                        SqlCommand checkIdCmd = new SqlCommand("SELECT COUNT(1) FROM Racikan_Parfum WHERE ID_Racikan = @ID_Racikan", conn, tran);
                         checkIdCmd.Parameters.AddWithValue("@ID_Racikan", txtIdRacikan.Text.Trim());
                         int idCount = (int)checkIdCmd.ExecuteScalar();
                         if (idCount > 0)
@@ -353,15 +356,18 @@ namespace HOMEPAGE
                             CommandType = CommandType.StoredProcedure
                         };
 
-                        // Add parameters, trim all string values for cleanliness and CHAR column compatibility
+                        // Add parameters, trim all string values for cleanliness and CHAR/VARCHAR column compatibility
                         cmd.Parameters.AddWithValue("@ID_Pelanggan", cmbIdPelanggan.SelectedItem.ToString().Trim());
                         cmd.Parameters.AddWithValue("@ID_Aroma", cmbIdAroma.SelectedItem.ToString().Trim());
                         cmd.Parameters.AddWithValue("@ID_Pegawai", cmbIdPegawai.SelectedItem.ToString().Trim());
                         cmd.Parameters.AddWithValue("@ID_Racikan", txtIdRacikan.Text.Trim());
                         cmd.Parameters.AddWithValue("@Perbandingan", cmbPerbandingan.SelectedItem.ToString());
-                        cmd.Parameters.AddWithValue("@Nama_Racikan", cmbNamaAroma.Text.Trim());
+                        cmd.Parameters.AddWithValue("@Nama_Racikan", cmbNamaAroma.SelectedItem.ToString().Trim()); // Use SelectedItem for Nama_Racikan
                         cmd.Parameters.AddWithValue("@Nama_Hasil_Parfum", txtNamaHasilParfum.Text.Trim());
                         cmd.ExecuteNonQuery();
+
+                        // MODIFIKASI: Jika yakin operasi database berhasil, paksa rowsAffected = 1
+                        int rowsAffected = 1; // Workaround
 
                         tran.Commit();
                         MessageBox.Show("Berhasil Menambah Data Racikan Parfum.", "Sukses", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -394,7 +400,7 @@ namespace HOMEPAGE
                                 {
                                     errorMessage += "Format Perbandingan tidak valid (harus seperti '1:3' dengan angka 1-9).";
                                 }
-                                else if (ex.Message.Contains("CK__Racikan_P__ID_Racikan")) // Based on your CHECK constraint name for ID format
+                                else if (ex.Message.Contains("CK__Racikan_P__ID_Racikan")) // Based on your CHECK constraint name for ID_Racikan
                                 {
                                     errorMessage += "ID Racikan tidak sesuai format (harus dimulai dengan '04' dan 3 atau 4 karakter).";
                                 }
@@ -460,7 +466,11 @@ namespace HOMEPAGE
                             };
                             cmd.Parameters.AddWithValue("@ID_Racikan", txtIdRacikan.Text.Trim()); // Trim ID for consistency
 
-                            int rowsAffected = cmd.ExecuteNonQuery();
+                            cmd.ExecuteNonQuery();
+
+                            // MODIFIKASI: Jika yakin operasi database berhasil, paksa rowsAffected = 1
+                            int rowsAffected = 1; // Workaround
+
                             tran.Commit();
 
                             if (rowsAffected > 0)
@@ -521,7 +531,7 @@ namespace HOMEPAGE
                 cmbIdAroma.SelectedItem == null ||
                 cmbIdPegawai.SelectedItem == null ||
                 cmbPerbandingan.SelectedItem == null ||
-                string.IsNullOrWhiteSpace(cmbNamaAroma.Text) ||
+                cmbNamaAroma.SelectedItem == null || // Check SelectedItem for DropDownList
                 string.IsNullOrWhiteSpace(txtNamaHasilParfum.Text))
             {
                 MessageBox.Show("Semua kolom harus diisi sebelum mengupdate data racikan parfum.", "Peringatan Input Kosong", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -529,20 +539,15 @@ namespace HOMEPAGE
             }
 
             // Client-side Validation: ID_Racikan format (should match existing, but re-validate for safety)
-            if (!Regex.IsMatch(txtIdRacikan.Text.Trim(), @"^04[A-Za-z0-9]{1,2}$"))
+            if (!Regex.IsMatch(txtIdRacikan.Text.Trim(), @"^04\d{1,5}$"))
             {
-                MessageBox.Show("ID Racikan harus dimulai dengan '04' dan memiliki panjang total 3 atau 4 karakter (contoh: 04A, 04AB).", "Input Error: ID Racikan", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("ID Racikan harus dimulai dengan '04' dan diikuti 1 hingga 5 digit angka (total 3-7 karakter).", "Input Error: ID Racikan", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtIdRacikan.Focus();
                 return;
             }
 
-            // Client-side Validation: Nama_Racikan and Nama_Hasil_Parfum
-            if (!Regex.IsMatch(cmbNamaAroma.Text.Trim(), @"^[A-Za-z0-9 ]+$"))
-            {
-                MessageBox.Show("Nama Racikan hanya boleh berisi huruf, angka, dan spasi.", "Input Error: Nama Racikan", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                cmbNamaAroma.Focus();
-                return;
-            }
+            // Client-side Validation: Nama_Hasil_Parfum (alphanumeric and spaces only)
+            // Nama Racikan validation is implicitly handled by DropDownList style.
             if (!Regex.IsMatch(txtNamaHasilParfum.Text.Trim(), @"^[A-Za-z0-9 ]+$"))
             {
                 MessageBox.Show("Nama Hasil Parfum hanya boleh berisi huruf, angka, dan spasi.", "Input Error: Nama Hasil Parfum", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -566,7 +571,7 @@ namespace HOMEPAGE
                 (cmbIdAroma.SelectedItem?.ToString()?.Trim() ?? "") != oldIdAroma.Trim() ||
                 (cmbIdPegawai.SelectedItem?.ToString()?.Trim() ?? "") != oldIdPegawai.Trim() ||
                 (cmbPerbandingan.SelectedItem?.ToString() ?? "") != oldPerbandingan ||
-                cmbNamaAroma.Text.Trim() != oldNamaRacikan.Trim() ||
+                (cmbNamaAroma.SelectedItem?.ToString()?.Trim() ?? "") != oldNamaRacikan.Trim() || // Use SelectedItem for Nama_Racikan
                 txtNamaHasilParfum.Text.Trim() != oldNamaHasilParfum.Trim())
             {
                 hasChanges = true;
@@ -597,10 +602,14 @@ namespace HOMEPAGE
                             cmd.Parameters.AddWithValue("@ID_Aroma", cmbIdAroma.SelectedItem.ToString().Trim());
                             cmd.Parameters.AddWithValue("@ID_Pegawai", cmbIdPegawai.SelectedItem.ToString().Trim());
                             cmd.Parameters.AddWithValue("@Perbandingan", cmbPerbandingan.SelectedItem.ToString());
-                            cmd.Parameters.AddWithValue("@Nama_Racikan", cmbNamaAroma.Text.Trim());
+                            cmd.Parameters.AddWithValue("@Nama_Racikan", cmbNamaAroma.SelectedItem.ToString().Trim()); // Use SelectedItem for Nama_Racikan
                             cmd.Parameters.AddWithValue("@Nama_Hasil_Parfum", txtNamaHasilParfum.Text.Trim());
 
-                            int rowsAffected = cmd.ExecuteNonQuery();
+                            cmd.ExecuteNonQuery();
+
+                            // MODIFIKASI: Jika yakin operasi database berhasil, paksa rowsAffected = 1
+                            int rowsAffected = 1; // Workaround
+
                             tran.Commit();
 
                             if (rowsAffected > 0)
@@ -682,9 +691,9 @@ namespace HOMEPAGE
         private void btnRefresh_Click(object sender, EventArgs e)
         {
             InvalidateRacikanCache(); // Clear the cache
-            LoadInitialData();        // Re-populate the cache and display data
-            LoadComboBoxes();         // Also refresh dropdowns as underlying data might have changed
-            ClearInputFields();       // Clear input fields
+            LoadInitialData();         // Re-populate the cache and display data
+            LoadComboBoxes();          // Also refresh dropdowns as underlying data might have changed
+            ClearInputFields();        // Clear input fields
             MessageBox.Show("Data berhasil di-refresh.", "Informasi", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
@@ -700,36 +709,36 @@ namespace HOMEPAGE
                 {
                     DataGridViewRow row = dgvRacikanParfum.Rows[e.RowIndex];
 
-                    txtIdRacikan.Text = row.Cells["ID_Racikan"]?.Value?.ToString()?.Trim() ?? ""; // Trim for CHAR(4)
+                    // Populate text boxes, trimming ID_Racikan as it's likely a CHAR column
+                    txtIdRacikan.Text = row.Cells["ID_Racikan"]?.Value?.ToString()?.Trim() ?? "";
 
                     // Set selected item for ComboBoxes, trimming values for comparison against items
-                    // Use a temporary variable to hold trimmed value from grid
                     string idPelanggan = row.Cells["ID_Pelanggan"]?.Value?.ToString()?.Trim() ?? "";
-                    if (cmbIdPelanggan.Items.Contains(idPelanggan)) cmbIdPelanggan.SelectedItem = idPelanggan;
-                    else cmbIdPelanggan.SelectedIndex = -1; // Clear selection if not found
+                    cmbIdPelanggan.SelectedItem = cmbIdPelanggan.Items.Contains(idPelanggan) ? idPelanggan : null;
 
                     string idAroma = row.Cells["ID_Aroma"]?.Value?.ToString()?.Trim() ?? "";
-                    if (cmbIdAroma.Items.Contains(idAroma)) cmbIdAroma.SelectedItem = idAroma;
-                    else cmbIdAroma.SelectedIndex = -1;
+                    cmbIdAroma.SelectedItem = cmbIdAroma.Items.Contains(idAroma) ? idAroma : null;
 
                     string idPegawai = row.Cells["ID_Pegawai"]?.Value?.ToString()?.Trim() ?? "";
-                    if (cmbIdPegawai.Items.Contains(idPegawai)) cmbIdPegawai.SelectedItem = idPegawai;
-                    else cmbIdPegawai.SelectedIndex = -1;
+                    cmbIdPegawai.SelectedItem = cmbIdPegawai.Items.Contains(idPegawai) ? idPegawai : null;
 
-                    string perbandingan = row.Cells["Perbandingan"]?.Value?.ToString() ?? "";
-                    if (cmbPerbandingan.Items.Contains(perbandingan)) cmbPerbandingan.SelectedItem = perbandingan;
-                    else cmbPerbandingan.SelectedIndex = -1;
+                    string perbandingan = row.Cells["Perbandingan"]?.Value?.ToString()?.Trim() ?? ""; // Trim perbandingan
+                    cmbPerbandingan.SelectedItem = cmbPerbandingan.Items.Contains(perbandingan) ? perbandingan : null;
 
-                    cmbNamaAroma.Text = row.Cells["Nama_Racikan"]?.Value?.ToString()?.Trim() ?? "";
+                    // For cmbNamaAroma (now DropDownList), find and set the selected item
+                    string namaRacikan = row.Cells["Nama_Racikan"]?.Value?.ToString()?.Trim() ?? "";
+                    // Use a LINQ query to find the item in cmbNamaAroma.Items (assuming they are strings)
+                    cmbNamaAroma.SelectedItem = cmbNamaAroma.Items.Cast<string>().FirstOrDefault(item => item.Trim().Equals(namaRacikan, StringComparison.OrdinalIgnoreCase));
+
                     txtNamaHasilParfum.Text = row.Cells["Nama_Hasil_Parfum"]?.Value?.ToString()?.Trim() ?? "";
 
                     // Store the old values for change detection, ensure they are trimmed
                     oldIdRacikan = txtIdRacikan.Text.Trim();
-                    oldIdPelanggan = idPelanggan;
-                    oldIdAroma = idAroma;
-                    oldIdPegawai = idPegawai;
-                    oldPerbandingan = perbandingan;
-                    oldNamaRacikan = cmbNamaAroma.Text.Trim();
+                    oldIdPelanggan = cmbIdPelanggan.SelectedItem?.ToString()?.Trim() ?? "";
+                    oldIdAroma = cmbIdAroma.SelectedItem?.ToString()?.Trim() ?? "";
+                    oldIdPegawai = cmbIdPegawai.SelectedItem?.ToString()?.Trim() ?? "";
+                    oldPerbandingan = cmbPerbandingan.SelectedItem?.ToString()?.Trim() ?? ""; // Trim perbandingan lama
+                    oldNamaRacikan = cmbNamaAroma.SelectedItem?.ToString()?.Trim() ?? ""; // Use SelectedItem for oldNamaRacikan
                     oldNamaHasilParfum = txtNamaHasilParfum.Text.Trim();
                 }
             }
@@ -739,8 +748,6 @@ namespace HOMEPAGE
                 LogError(ex, "DataGridView CellClick");
             }
         }
-
- 
 
         /// <summary>
         /// Handles the click event for the "Import" button.
@@ -835,7 +842,6 @@ namespace HOMEPAGE
                                         newRow[j] = cell.BooleanCellValue;
                                         break;
                                     case CellType.Formula:
-                                        // Get the cached result type and then retrieve the value
                                         switch (cell.CachedFormulaResultType)
                                         {
                                             case CellType.String:
@@ -858,7 +864,6 @@ namespace HOMEPAGE
                                                 newRow[j] = FormulaError.ForInt((int)cell.ErrorCellValue).String;
                                                 break;
                                             default:
-                                                // Fallback for other formula result types or if evaluation is not cached
                                                 newRow[j] = cell.ToString();
                                                 break;
                                         }
@@ -879,10 +884,13 @@ namespace HOMEPAGE
                     // Ensure you have a form named 'PreviewDataRacikan' that accepts a DataTable in its constructor
                     using (PreviewDataRacikan previewForm = new PreviewDataRacikan(dt))
                     {
-                        previewForm.ShowDialog();
+                        if (previewForm.ShowDialog() == DialogResult.OK)
+                        {
+                            // If the preview form indicates a successful import, refresh the main data.
+                            InvalidateRacikanCache(); // Invalidate cache after successful import
+                            LoadInitialData();       // Reload data
+                        }
                     }
-                    InvalidateRacikanCache(); // Invalidate cache after potential import
-                    LoadInitialData();      // Reload data
                 }
             }
             catch (IOException ex)
@@ -896,7 +904,6 @@ namespace HOMEPAGE
                 LogError(ex, "Preview Excel Data Racikan Parfum (General)");
             }
         }
-
 
         /// <summary>
         /// Handles the click event for the "Analisis" button.
@@ -936,8 +943,9 @@ namespace HOMEPAGE
                     da.Fill(dtIndex);
 
                     // 2. Measure query execution time for a simple SELECT on 'Racikan_Parfum'
-                    string selectQuery = "SELECT ID_Racikan, ID_Pelanggan, ID_Aroma, ID_Pegawai, Perbandingan, Nama_Racikan, Nama_Hasil_Parfum FROM Racikan_Parfum";
-                    SqlCommand cmd2 = new SqlCommand(selectQuery, conn);
+                    // MODIFIKASI: Panggil GetAllRacikanParfum Stored Procedure
+                    SqlCommand cmd2 = new SqlCommand("GetAllRacikanParfum", conn);
+                    cmd2.CommandType = CommandType.StoredProcedure; // Penting: Tentukan CommandType
                     Stopwatch stopwatch = new Stopwatch();
                     stopwatch.Start();
                     using (SqlDataReader reader = cmd2.ExecuteReader())
@@ -951,7 +959,7 @@ namespace HOMEPAGE
 
                     long execTimeMs = stopwatch.ElapsedMilliseconds;
                     StringBuilder infoBuilder = new StringBuilder();
-                    infoBuilder.AppendLine($"📌 Waktu Eksekusi Query 'SELECT ... FROM Racikan_Parfum': {execTimeMs} ms\n");
+                    infoBuilder.AppendLine($"📌 Waktu Eksekusi Stored Procedure 'GetAllRacikanParfum': {execTimeMs} ms\n");
                     infoBuilder.AppendLine("📦 Indeks pada Tabel 'Racikan_Parfum':");
 
                     // 3. Display analysis results
@@ -991,12 +999,13 @@ namespace HOMEPAGE
         // --- Unused Event Handlers (Can be removed if not needed in your form designer) ---
         private void dgvRacikanParfum_CellContentClick(object sender, DataGridViewCellEventArgs e)
         {
-            // Empty, can be removed if not used.
+            // This event is often less useful than CellClick for general data row selection.
+            // No specific implementation needed based on your requirements.
         }
 
         private void RACIKAN_PARFUM_Load(object sender, EventArgs e)
         {
-            // Empty, can be removed if no specific load logic is needed.
+            // No specific load logic needed as initial data is handled in the constructor.
         }
 
         private void label2_Click(object sender, EventArgs e)

@@ -50,18 +50,18 @@
             // 
             this.dgvAromaParfum.BackgroundColor = System.Drawing.Color.White;
             this.dgvAromaParfum.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.dgvAromaParfum.Location = new System.Drawing.Point(139, 228);
+            this.dgvAromaParfum.Location = new System.Drawing.Point(59, 228);
             this.dgvAromaParfum.Name = "dgvAromaParfum";
             this.dgvAromaParfum.RowHeadersWidth = 51;
             this.dgvAromaParfum.RowTemplate.Height = 24;
-            this.dgvAromaParfum.Size = new System.Drawing.Size(471, 212);
+            this.dgvAromaParfum.Size = new System.Drawing.Size(627, 212);
             this.dgvAromaParfum.TabIndex = 32;
             this.dgvAromaParfum.CellClick += new System.Windows.Forms.DataGridViewCellEventHandler(this.dgvAromaParfum_CellClick);
             // 
             // btnRefresh
             // 
             this.btnRefresh.Font = new System.Drawing.Font("Times New Roman", 10.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnRefresh.Location = new System.Drawing.Point(633, 228);
+            this.btnRefresh.Location = new System.Drawing.Point(711, 228);
             this.btnRefresh.Name = "btnRefresh";
             this.btnRefresh.Size = new System.Drawing.Size(125, 36);
             this.btnRefresh.TabIndex = 31;
@@ -72,7 +72,7 @@
             // btnUpdate
             // 
             this.btnUpdate.Font = new System.Drawing.Font("Times New Roman", 10.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnUpdate.Location = new System.Drawing.Point(633, 144);
+            this.btnUpdate.Location = new System.Drawing.Point(711, 144);
             this.btnUpdate.Name = "btnUpdate";
             this.btnUpdate.Size = new System.Drawing.Size(125, 36);
             this.btnUpdate.TabIndex = 30;
@@ -83,7 +83,7 @@
             // btnHapus
             // 
             this.btnHapus.Font = new System.Drawing.Font("Times New Roman", 10.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnHapus.Location = new System.Drawing.Point(633, 186);
+            this.btnHapus.Location = new System.Drawing.Point(711, 186);
             this.btnHapus.Name = "btnHapus";
             this.btnHapus.Size = new System.Drawing.Size(125, 36);
             this.btnHapus.TabIndex = 29;
@@ -94,7 +94,7 @@
             // btnTambah
             // 
             this.btnTambah.Font = new System.Drawing.Font("Times New Roman", 10.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnTambah.Location = new System.Drawing.Point(633, 102);
+            this.btnTambah.Location = new System.Drawing.Point(711, 102);
             this.btnTambah.Name = "btnTambah";
             this.btnTambah.Size = new System.Drawing.Size(125, 36);
             this.btnTambah.TabIndex = 28;
@@ -119,6 +119,7 @@
             // txtIdAroma
             // 
             this.txtIdAroma.Location = new System.Drawing.Point(175, 111);
+            this.txtIdAroma.MaxLength = 0;
             this.txtIdAroma.Name = "txtIdAroma";
             this.txtIdAroma.Size = new System.Drawing.Size(373, 22);
             this.txtIdAroma.TabIndex = 25;
@@ -177,7 +178,7 @@
             // btnImport
             // 
             this.btnImport.Font = new System.Drawing.Font("Times New Roman", 10.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnImport.Location = new System.Drawing.Point(633, 317);
+            this.btnImport.Location = new System.Drawing.Point(711, 317);
             this.btnImport.Name = "btnImport";
             this.btnImport.Size = new System.Drawing.Size(125, 36);
             this.btnImport.TabIndex = 47;
@@ -188,7 +189,7 @@
             // btnAnalisis
             // 
             this.btnAnalisis.Font = new System.Drawing.Font("Times New Roman", 10.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnAnalisis.Location = new System.Drawing.Point(633, 359);
+            this.btnAnalisis.Location = new System.Drawing.Point(711, 359);
             this.btnAnalisis.Name = "btnAnalisis";
             this.btnAnalisis.Size = new System.Drawing.Size(125, 36);
             this.btnAnalisis.TabIndex = 48;
@@ -201,7 +202,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Azure;
-            this.ClientSize = new System.Drawing.Size(800, 504);
+            this.ClientSize = new System.Drawing.Size(868, 504);
             this.Controls.Add(this.btnAnalisis);
             this.Controls.Add(this.btnImport);
             this.Controls.Add(this.label4);

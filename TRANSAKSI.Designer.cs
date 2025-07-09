@@ -36,7 +36,6 @@
             this.txtTotalHarga = new System.Windows.Forms.TextBox();
             this.txtIdTransaksi = new System.Windows.Forms.TextBox();
             this.label3 = new System.Windows.Forms.Label();
-            this.label2 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
             this.label4 = new System.Windows.Forms.Label();
             this.cmbIdPelanggan = new System.Windows.Forms.ComboBox();
@@ -44,7 +43,6 @@
             this.label5 = new System.Windows.Forms.Label();
             this.btnAnalisis = new System.Windows.Forms.Button();
             this.btnImport = new System.Windows.Forms.Button();
-            this.dtpTanggalTransaksi = new System.Windows.Forms.DateTimePicker();
             ((System.ComponentModel.ISupportInitialize)(this.dgvTransaksi)).BeginInit();
             this.SuspendLayout();
             // 
@@ -106,37 +104,29 @@
             // 
             // txtTotalHarga
             // 
-            this.txtTotalHarga.Location = new System.Drawing.Point(199, 222);
+            this.txtTotalHarga.Location = new System.Drawing.Point(199, 197);
             this.txtTotalHarga.Name = "txtTotalHarga";
             this.txtTotalHarga.Size = new System.Drawing.Size(295, 22);
             this.txtTotalHarga.TabIndex = 27;
             // 
             // txtIdTransaksi
             // 
-            this.txtIdTransaksi.Location = new System.Drawing.Point(199, 152);
+            this.txtIdTransaksi.Location = new System.Drawing.Point(199, 155);
+            this.txtIdTransaksi.MaxLength = 0;
             this.txtIdTransaksi.Name = "txtIdTransaksi";
             this.txtIdTransaksi.Size = new System.Drawing.Size(295, 22);
             this.txtIdTransaksi.TabIndex = 25;
+            this.txtIdTransaksi.TextChanged += new System.EventHandler(this.txtIdTransaksi_TextChanged);
             // 
             // label3
             // 
             this.label3.AutoSize = true;
             this.label3.Font = new System.Drawing.Font("Times New Roman", 10.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label3.Location = new System.Drawing.Point(29, 225);
+            this.label3.Location = new System.Drawing.Point(29, 200);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(96, 19);
             this.label3.TabIndex = 24;
             this.label3.Text = "Total Harga";
-            // 
-            // label2
-            // 
-            this.label2.AutoSize = true;
-            this.label2.Font = new System.Drawing.Font("Times New Roman", 10.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label2.Location = new System.Drawing.Point(29, 193);
-            this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(141, 19);
-            this.label2.TabIndex = 23;
-            this.label2.Text = "Tanggal Transaksi";
             // 
             // label1
             // 
@@ -152,7 +142,7 @@
             // 
             this.label4.AutoSize = true;
             this.label4.Font = new System.Drawing.Font("Times New Roman", 10.2F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label4.Location = new System.Drawing.Point(29, 155);
+            this.label4.Location = new System.Drawing.Point(29, 158);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(99, 19);
             this.label4.TabIndex = 33;
@@ -209,21 +199,12 @@
             this.btnImport.UseVisualStyleBackColor = true;
             this.btnImport.Click += new System.EventHandler(this.btnImport_Click);
             // 
-            // dtpTanggalTransaksi
-            // 
-            this.dtpTanggalTransaksi.Location = new System.Drawing.Point(199, 190);
-            this.dtpTanggalTransaksi.Name = "dtpTanggalTransaksi";
-            this.dtpTanggalTransaksi.Size = new System.Drawing.Size(295, 22);
-            this.dtpTanggalTransaksi.TabIndex = 49;
-            this.dtpTanggalTransaksi.ValueChanged += new System.EventHandler(this.dtpTanggalTransaksi_ValueChanged);
-            // 
             // TRANSAKSI
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Azure;
             this.ClientSize = new System.Drawing.Size(829, 490);
-            this.Controls.Add(this.dtpTanggalTransaksi);
             this.Controls.Add(this.btnImport);
             this.Controls.Add(this.btnAnalisis);
             this.Controls.Add(this.label5);
@@ -238,7 +219,6 @@
             this.Controls.Add(this.txtTotalHarga);
             this.Controls.Add(this.txtIdTransaksi);
             this.Controls.Add(this.label3);
-            this.Controls.Add(this.label2);
             this.Controls.Add(this.label1);
             this.Name = "TRANSAKSI";
             this.Text = "TRANSAKSI";
@@ -259,7 +239,6 @@
         private System.Windows.Forms.TextBox txtTotalHarga;
         private System.Windows.Forms.TextBox txtIdTransaksi;
         private System.Windows.Forms.Label label3;
-        private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Label label4;
         private System.Windows.Forms.ComboBox cmbIdPelanggan;
@@ -267,6 +246,5 @@
         private System.Windows.Forms.Label label5;
         private System.Windows.Forms.Button btnAnalisis;
         private System.Windows.Forms.Button btnImport;
-        private System.Windows.Forms.DateTimePicker dtpTanggalTransaksi;
     }
 }

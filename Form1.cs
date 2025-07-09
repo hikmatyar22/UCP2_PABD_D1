@@ -13,10 +13,12 @@ namespace HOMEPAGE
 {
     public partial class Form1 : Form
     {
-        SqlConnection conn = new SqlConnection("Data Source=LAPTOP-T1UUTAE0\\HIKMATYAR;Initial Catalog=Manajemen_Penjualan_Parfum;Integrated Security=True");
+        private koneksi kn = new koneksi(); // Tambahkan ini
+        SqlConnection conn; // Ubah ini
         public Form1()
         {
             InitializeComponent();
+            conn = new SqlConnection(kn.connectionString());
         }
 
         private void btnMENU_Click(object sender, EventArgs e)

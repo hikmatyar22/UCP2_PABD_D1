@@ -15,10 +15,12 @@ namespace HOMEPAGE
 {
     public partial class HalamanMenu : Form
     {
-        SqlConnection conn = new SqlConnection("Data Source=MSI\\ABIMANYU;Initial Catalog=Manajemen_Penjualan_Parfum;Integrated Security=True");
+        private koneksi kn = new koneksi(); // Tambahkan ini
+        SqlConnection conn; // Ubah ini
         public HalamanMenu()
         {
             InitializeComponent();
+            conn = new SqlConnection(kn.connectionString()); // Tambahkan ini
         }
 
         private void btnPELANGGAN_Click(object sender, EventArgs e)

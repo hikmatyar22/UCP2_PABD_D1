@@ -8,29 +8,68 @@ using System.Data.SqlClient;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Text;
+using System.Text; // Ditambahkan untuk StringBuilder dalam LogError
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Text.RegularExpressions; // Tambahkan ini untuk Regex
-
+using System.Diagnostics; // Untuk debugging dengan Debug.WriteLine
+using HOMEPAGE; // Pastikan ini ada
 
 namespace HOMEPAGE
 {
     public partial class PEGAWAI : Form
     {
-        SqlConnection conn = new SqlConnection("Data Source=LAPTOP-T1UUTAE0\\HIKMATYAR;Initial Catalog=Manajemen_Penjualan_Parfum;Integrated Security=True");
+        // Gunakan connectionString yang sudah didefinisikan secara global
+        // Hapus baris ini:
+        // private string connectionString = "Data Source=LAPTOP-T1UUTAE0\\HIKMATYAR;Initial Catalog=Manajemen_Penjualan_Parfum;Integrated Security=True";
+
+        private koneksi kn = new koneksi(); // Tambahkan ini 
+        SqlConnection conn; // Deklarasi SqlConnection di sini 
 
         public PEGAWAI()
         {
             InitializeComponent();
-            TampilData();
-            LoadCachedData();
+            conn = new SqlConnection(kn.connectionString()); // Inisialisasi di konstruktor 
+            LoadCachedData(); // Memuat data awal saat form dibuka
         }
 
         DataTable cachePegawai = null;
         private string oldNamaPegawai = "";
 
+        // Tambahkan metode LogError untuk konsistensi
+        private void LogError(Exception ex, string operation)
+        {
+            string logDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
+            if (!Directory.Exists(logDirectory))
+            {
+                Directory.CreateDirectory(logDirectory);
+            }
+            string logFilePath = Path.Combine(logDirectory, "application_error.log");
 
+            StringBuilder logEntry = new StringBuilder();
+            logEntry.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Operation: {operation}");
+            logEntry.AppendLine($"Error Message: {ex.Message}");
+            logEntry.AppendLine($"Stack Trace: {ex.StackTrace}");
+            if (ex.InnerException != null)
+            {
+                logEntry.AppendLine($"Inner Exception: {ex.InnerException.Message}");
+                logEntry.AppendLine($"Inner Stack Trace: {ex.InnerException.StackTrace}");
+            }
+            logEntry.AppendLine("--------------------------------------------------\n");
+
+            try
+            {
+                File.AppendAllText(logFilePath, logEntry.ToString());
+            }
+            catch (Exception logEx)
+            {
+                MessageBox.Show($"Terjadi kesalahan fatal saat mencatat log: {logEx.Message}\n" +
+                                 "Silakan cek izin tulis folder aplikasi Anda.", "Error Logging Critical", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        // Metode TampilData() ini redundan karena LoadCachedData() sudah melakukan tugas serupa
+        // Disarankan untuk menghapusnya jika tidak ada panggilan eksternal yang spesifik
         void TampilData()
         {
             try
@@ -39,12 +78,10 @@ namespace HOMEPAGE
                 {
                     conn.Open();
                 }
-                string query = "SELECT * FROM Pegawai";
+                string query = "SELECT * FROM Pegawai"; // Query ini tidak akan terurut secara numerik ID
                 SqlDataAdapter adapter = new SqlDataAdapter(query, conn);
                 DataTable dt = new DataTable();
                 adapter.Fill(dt);
-                dgvPegawai.DataSource = dt;
-
             }
             catch (Exception ex)
             {
@@ -56,35 +93,49 @@ namespace HOMEPAGE
                 {
                     conn.Close();
                 }
-
             }
         }
 
         private void LoadCachedData()
         {
-            if (cachePegawai == null)
+            Debug.WriteLine("LoadCachedData() dipanggil.");
+            // MODIFIKASI: Atur kursor loading saat mulai memuat data
+            Cursor.Current = Cursors.WaitCursor; // Tampilkan kursor jam pasir
+
+            cachePegawai = new DataTable(); // Selalu buat DataTable baru untuk memastikan data fresh
+
+            try
             {
-                cachePegawai = new DataTable();
-                try
+                // Gunakan kn.connectionString() di sini
+                using (var newConn = new SqlConnection(kn.connectionString()))
                 {
-                    using (var newConn = new SqlConnection(connectionString))
+                    newConn.Open();
+                    // MODIFIKASI: Gunakan Stored Procedure GetAllPegawai (untuk pengurutan numerik)
+                    using (var cmd = new SqlCommand("GetAllPegawai", newConn))
                     {
-                        newConn.Open();
-                        using (var da = new SqlDataAdapter("SELECT * FROM Pegawai", newConn))
+                        cmd.CommandType = CommandType.StoredProcedure; // Penting: Tentukan CommandType sebagai StoredProcedure
+                        using (var da = new SqlDataAdapter(cmd)) // Gunakan SqlCommand sebagai argumen SqlDataAdapter
                         {
                             da.Fill(cachePegawai);
                         }
                     }
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Gagal memuat data cache: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
             }
-            dgvPegawai.DataSource = cachePegawai;
-        }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Gagal memuat data cache: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LogError(ex, "Load Cached Data Pegawai"); // Panggil LogError
+                Debug.WriteLine($"Error di LoadCachedData: {ex.Message}");
+            }
+            finally
+            {
+                // MODIFIKASI: Kembalikan kursor ke default setelah selesai (baik sukses maupun gagal)
+                Cursor.Current = Cursors.Default;
+            }
 
-        private string connectionString = "Data Source=LAPTOP-T1UUTAE0\\HIKMATYAR;Initial Catalog=Manajemen_Penjualan_Parfum;Integrated Security=True";
+            dgvPegawai.DataSource = cachePegawai;
+            dgvPegawai.Refresh();
+        }
 
         private void btnTambah_Click(object sender, EventArgs e)
         {
@@ -102,20 +153,15 @@ namespace HOMEPAGE
                 return;
             }
 
-            // Client-side validation for ID_Pegawai format: must start with '03' and be 3 or 4 characters long
-            // Using Regex for more robust checking.
-            // ^03 : start with '03'
-            // .{1,2} : followed by 1 or 2 any characters
-            // $ : end of string
-            if (!Regex.IsMatch(txtIdPegawai.Text.Trim(), @"^03.{1,2}$"))
+            // Client-side validation for ID_Pegawai format
+            if (!Regex.IsMatch(txtIdPegawai.Text.Trim(), @"^03\d{1,5}$"))
             {
-                MessageBox.Show("ID Pegawai harus dimulai dengan '03' dan memiliki panjang total 3 atau 4 karakter.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("ID Pegawai harus dimulai dengan '03' dan diikuti 1 hingga 5 digit angka (total 3-7 karakter)", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtIdPegawai.Focus();
                 return;
             }
 
-
-            // Client-side validation for Nama_Pegawai (based on trigger)
+            // Client-side validation for Nama_Pegawai
             if (Regex.IsMatch(txtNama.Text, @"[^A-Za-z ]"))
             {
                 MessageBox.Show("Nama Pegawai hanya boleh berisi huruf dan spasi.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -123,18 +169,16 @@ namespace HOMEPAGE
                 return;
             }
 
-
-            using (var newConn = new SqlConnection(connectionString))
+            // Gunakan kn.connectionString() di sini
+            using (var newConn = new SqlConnection(kn.connectionString()))
             {
                 newConn.Open();
                 using (var tran = newConn.BeginTransaction())
                 {
                     try
                     {
-                        // Check if ID already exists before attempting insert
-                        // TRIM() is used here to handle CHAR(4) padding from DB during comparison.
                         SqlCommand checkCmd = new SqlCommand("SELECT COUNT(1) FROM Pegawai WHERE ID_Pegawai = @ID", newConn, tran);
-                        checkCmd.Parameters.AddWithValue("@ID", txtIdPegawai.Text.Trim()); // Use Trim() for comparison
+                        checkCmd.Parameters.AddWithValue("@ID", txtIdPegawai.Text.Trim());
                         int count = (int)checkCmd.ExecuteScalar();
                         if (count > 0)
                         {
@@ -144,24 +188,26 @@ namespace HOMEPAGE
                             return;
                         }
 
-
                         var cmd = new SqlCommand("sp_TambahPegawai", newConn, tran)
                         {
                             CommandType = CommandType.StoredProcedure
                         };
-                        cmd.Parameters.AddWithValue("@ID", txtIdPegawai.Text.Trim()); // Kirim data dengan TRIM() agar tidak ada spasi sisa
+                        cmd.Parameters.AddWithValue("@ID", txtIdPegawai.Text.Trim());
                         cmd.Parameters.AddWithValue("@Nama", txtNama.Text);
                         cmd.ExecuteNonQuery();
 
                         tran.Commit();
                         MessageBox.Show("Berhasil Menambah Data", "Informasi", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        cachePegawai = null;
+
+                        // Perbarui DataGridView setelah operasi CRUD
                         LoadCachedData();
                         ClearInputFields();
                     }
                     catch (SqlException ex)
                     {
                         tran.Rollback();
+                        LogError(ex, "Tambah Pegawai"); // Panggil LogError
+
                         string errorMessage = "Terjadi kesalahan saat menambah data pegawai: ";
 
                         switch (ex.Number)
@@ -175,7 +221,7 @@ namespace HOMEPAGE
                             case 8152:
                                 errorMessage += "Nama Pegawai terlalu panjang.";
                                 break;
-                            case 547: // This would still catch if the CHECK constraint on SQL side fires after trimming.
+                            case 547:
                                 errorMessage += "ID Pegawai tidak sesuai format (harus dimulai dengan '03' dan 3 atau 4 karakter).";
                                 break;
                             default:
@@ -204,7 +250,8 @@ namespace HOMEPAGE
 
             if (MessageBox.Show("Apakah Anda yakin ingin menghapus data ini?", "Konfirmasi Hapus", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
-                using (var newConn = new SqlConnection(connectionString))
+                // Gunakan kn.connectionString() di sini
+                using (var newConn = new SqlConnection(kn.connectionString()))
                 {
                     newConn.Open();
                     using (var tran = newConn.BeginTransaction())
@@ -215,7 +262,7 @@ namespace HOMEPAGE
                             {
                                 CommandType = CommandType.StoredProcedure
                             };
-                            cmd.Parameters.AddWithValue("@ID", txtIdPegawai.Text.Trim()); // Use Trim() for consistency
+                            cmd.Parameters.AddWithValue("@ID", txtIdPegawai.Text.Trim());
                             int rowsAffected = cmd.ExecuteNonQuery();
                             if (rowsAffected == 0)
                             {
@@ -226,7 +273,8 @@ namespace HOMEPAGE
                             {
                                 tran.Commit();
                                 MessageBox.Show("Berhasil Menghapus Data", "Informasi", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                                cachePegawai = null;
+
+                                // Perbarui DataGridView setelah operasi CRUD
                                 LoadCachedData();
                                 ClearInputFields();
                             }
@@ -234,6 +282,8 @@ namespace HOMEPAGE
                         catch (SqlException ex)
                         {
                             tran.Rollback();
+                            LogError(ex, "Hapus Pegawai"); // Panggil LogError
+
                             string errorMessage = "Terjadi kesalahan saat menghapus data pegawai: ";
                             if (ex.Number == 547)
                             {
@@ -271,7 +321,7 @@ namespace HOMEPAGE
                 return;
             }
 
-            // Client-side validation for Nama_Pegawai (based on trigger)
+            // Client-side validation for Nama_Pegawai
             if (Regex.IsMatch(txtNama.Text, @"[^A-Za-z ]"))
             {
                 MessageBox.Show("Nama Pegawai hanya boleh berisi huruf dan spasi.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -287,7 +337,8 @@ namespace HOMEPAGE
 
             if (MessageBox.Show("Apakah Anda yakin ingin mengupdate data ini?", "Konfirmasi Update", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
-                using (var newConn = new SqlConnection(connectionString))
+                // Gunakan kn.connectionString() di sini
+                using (var newConn = new SqlConnection(kn.connectionString()))
                 {
                     newConn.Open();
                     using (var tran = newConn.BeginTransaction())
@@ -298,7 +349,7 @@ namespace HOMEPAGE
                             {
                                 CommandType = CommandType.StoredProcedure
                             };
-                            cmd.Parameters.AddWithValue("@ID", txtIdPegawai.Text.Trim()); // Use Trim() for consistency
+                            cmd.Parameters.AddWithValue("@ID", txtIdPegawai.Text.Trim());
                             cmd.Parameters.AddWithValue("@Nama", txtNama.Text);
 
                             int rowsAffected = cmd.ExecuteNonQuery();
@@ -312,7 +363,8 @@ namespace HOMEPAGE
                             {
                                 tran.Commit();
                                 MessageBox.Show("Berhasil Mengupdate Data", "Informasi", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                                cachePegawai = null;
+
+                                // Perbarui DataGridView setelah operasi CRUD
                                 LoadCachedData();
                                 ClearInputFields();
                             }
@@ -320,6 +372,8 @@ namespace HOMEPAGE
                         catch (SqlException ex)
                         {
                             tran.Rollback();
+                            LogError(ex, "Update Pegawai"); // Panggil LogError
+
                             string errorMessage = "Terjadi kesalahan saat mengupdate data pegawai: ";
                             switch (ex.Number)
                             {
@@ -345,12 +399,12 @@ namespace HOMEPAGE
             }
         }
 
-
         private void btnRefresh_Click(object sender, EventArgs e)
         {
-            cachePegawai = null;
-            LoadCachedData();
+            LoadCachedData(); // Cukup panggil LoadCachedData() untuk refresh
             ClearInputFields();
+            // MODIFIKASI: Tambahkan pesan refresh
+            MessageBox.Show("Data berhasil di-refresh.", "Informasi", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void btnKEMBALI_Click(object sender, EventArgs e)
@@ -362,12 +416,19 @@ namespace HOMEPAGE
 
         private void label3_Click(object sender, EventArgs e)
         {
-
+            // Event handler ini kosong, mungkin tidak diperlukan.
         }
 
         private void dgvPegawai_CellContentClick(object sender, DataGridViewCellEventArgs e)
         {
-
+            // Biasanya dgv_CellClick lebih sering digunakan.
+            if (e.RowIndex >= 0)
+            {
+                DataGridViewRow row = dgvPegawai.Rows[e.RowIndex];
+                txtIdPegawai.Text = row.Cells["ID_Pegawai"].Value.ToString().Trim();
+                txtNama.Text = row.Cells["Nama_Pegawai"].Value.ToString();
+                oldNamaPegawai = txtNama.Text;
+            }
         }
 
         private void dgvPegawai_CellClick(object sender, DataGridViewCellEventArgs e)
@@ -375,16 +436,15 @@ namespace HOMEPAGE
             if (e.RowIndex >= 0)
             {
                 DataGridViewRow row = dgvPegawai.Rows[e.RowIndex];
-                // When reading from CHAR(N) column, it might have trailing spaces. Trim it.
                 txtIdPegawai.Text = row.Cells["ID_Pegawai"].Value.ToString().Trim();
                 txtNama.Text = row.Cells["Nama_Pegawai"].Value.ToString();
-
                 oldNamaPegawai = txtNama.Text;
             }
         }
 
         private void PEGAWAI_Load(object sender, EventArgs e)
         {
+            // Event handler ini kosong, tidak ada kode yang perlu dieksekusi saat form dimuat selain yang di konstruktor.
         }
 
         private void ClearInputFields()
@@ -393,7 +453,6 @@ namespace HOMEPAGE
             txtNama.Clear();
             txtIdPegawai.Focus();
         }
-
 
         private void PreviewData(string filePath)
         {
@@ -427,15 +486,27 @@ namespace HOMEPAGE
                         dt.Rows.Add(newRow);
                     }
 
-                    PreviewDataPelanggan preview = new PreviewDataPelanggan(dt);
-                    preview.ShowDialog();
-                    cachePegawai = null;
-                    LoadCachedData();
+                    // Membuat instance form PreviewDataPegawai dan menampilkannya sebagai dialog
+                    PreviewDataPegawai previewForm = new PreviewDataPegawai(dt);
+                    Debug.WriteLine("Membuka PreviewDataPegawai. Menunggu hasil...");
+
+                    // Menunggu form preview ditutup.
+                    // Jika form preview ditutup dengan DialogResult.OK (berarti impor berhasil/selesai)
+                    if (previewForm.ShowDialog() == DialogResult.OK)
+                    {
+                        Debug.WriteLine("PreviewDataPegawai ditutup dengan DialogResult.OK. Memuat ulang DataGridView utama.");
+                        LoadCachedData(); // Panggil LoadCachedData untuk memperbarui dgvPegawai di form ini
+                    }
+                    else
+                    {
+                        Debug.WriteLine("PreviewDataPegawai ditutup, tapi bukan dengan DialogResult.OK (mungkin dibatalkan).");
+                    }
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Gagal membaca file Excel: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Debug.WriteLine($"Error di PreviewData: {ex.Message}");
             }
         }
 
@@ -455,7 +526,8 @@ namespace HOMEPAGE
         {
             try
             {
-                using (SqlConnection newConn = new SqlConnection(connectionString))
+                // Gunakan kn.connectionString() di sini
+                using (SqlConnection newConn = new SqlConnection(kn.connectionString()))
                 {
                     newConn.Open();
 
@@ -483,16 +555,17 @@ namespace HOMEPAGE
                     DataTable dtIndex = new DataTable();
                     da.Fill(dtIndex);
 
-                    string selectQuery = "SELECT * FROM Pegawai";
-                    SqlCommand cmd2 = new SqlCommand(selectQuery, newConn);
+                    // MODIFIKASI: Panggil GetAllPegawai Stored Procedure untuk analisis
+                    SqlCommand cmd2 = new SqlCommand("GetAllPegawai", newConn);
+                    cmd2.CommandType = CommandType.StoredProcedure; // Penting: Tentukan CommandType
 
                     var stopwatch = new System.Diagnostics.Stopwatch();
                     stopwatch.Start();
-                    cmd2.ExecuteReader().Close();
+                    cmd2.ExecuteReader().Close(); // Hanya eksekusi dan tutup untuk mengukur waktu
                     stopwatch.Stop();
                     long execTimeMs = stopwatch.ElapsedMilliseconds;
 
-                    string info = $"📌 Waktu Eksekusi Query: {execTimeMs} ms\n\n📦 Indeks:\n";
+                    string info = $"📌 Waktu Eksekusi Stored Procedure 'GetAllPegawai': {execTimeMs} ms\n\n📦 Indeks:\n";
 
                     if (dtIndex.Rows.Count == 0)
                     {
@@ -512,6 +585,7 @@ namespace HOMEPAGE
             catch (Exception ex)
             {
                 MessageBox.Show("Gagal menganalisis: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LogError(ex, "Analisis Pegawai"); // Panggil LogError
             }
         }
     }
