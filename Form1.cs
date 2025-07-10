@@ -46,17 +46,15 @@ namespace HOMEPAGE
                 lblStatusKoneksi.Text = "STATUS : KONEKSI BERHASIL";
                 lblStatusKoneksi.ForeColor = Color.Green; // Atur warna menjadi hijau
             }
-            catch (Exception ex)
+            catch (Exception) // Tangkap pengecualian tanpa menggunakan variabel ex
             {
-                // Jika koneksi gagal, tampilkan pesan kesalahan
-                lblStatusKoneksi.Text = " STATUS : KONEKSI GAGAL: ";
+                // Jika koneksi gagal, tampilkan pesan kesalahan sederhana
+                lblStatusKoneksi.Text = "STATUS : KONEKSI GAGAL"; // Hanya pesan "Koneksi gagal"
                 lblStatusKoneksi.ForeColor = Color.Red; // Atur warna menjadi merah
-                MessageBox.Show("Gagal terhubung ke database:\n" + ex.Message, "Kesalahan Koneksi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
                 // Selalu tutup koneksi jika dibuka di blok ini
-                // (meskipun untuk sekadar memeriksa koneksi, Anda mungkin tidak ingin menyimpannya tetap terbuka di sini)
                 if (conn.State == ConnectionState.Open)
                 {
                     conn.Close();
