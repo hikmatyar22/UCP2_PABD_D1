@@ -31,6 +31,7 @@
             this.btnMENU = new System.Windows.Forms.Button();
             this.btnEXIT = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
+            this.lblStatusKoneksi = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // btnMENU
@@ -68,12 +69,24 @@
             this.label1.Text = "SELAMAT DATANG \r\nPENJUALAN PARFUM";
             this.label1.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
+            // lblStatusKoneksi
+            // 
+            this.lblStatusKoneksi.AutoSize = true;
+            this.lblStatusKoneksi.Font = new System.Drawing.Font("Times New Roman", 10.2F, ((System.Drawing.FontStyle)((System.Drawing.FontStyle.Bold | System.Drawing.FontStyle.Italic))), System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblStatusKoneksi.ForeColor = System.Drawing.SystemColors.ActiveCaptionText;
+            this.lblStatusKoneksi.Location = new System.Drawing.Point(190, 334);
+            this.lblStatusKoneksi.Name = "lblStatusKoneksi";
+            this.lblStatusKoneksi.Size = new System.Drawing.Size(261, 20);
+            this.lblStatusKoneksi.TabIndex = 3;
+            this.lblStatusKoneksi.Text = "STATUS : MENGHUBUNGKAN......";
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Azure;
             this.ClientSize = new System.Drawing.Size(682, 363);
+            this.Controls.Add(this.lblStatusKoneksi);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.btnEXIT);
             this.Controls.Add(this.btnMENU);
@@ -91,6 +104,7 @@
         private System.Windows.Forms.Button btnMENU;
         private System.Windows.Forms.Button btnEXIT;
         private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.Label lblStatusKoneksi;
     }
 }
 
