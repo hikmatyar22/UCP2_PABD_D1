@@ -49,7 +49,7 @@ namespace HOMEPAGE
             catch (Exception ex)
             {
                 // Jika koneksi gagal, tampilkan pesan kesalahan
-                lblStatusKoneksi.Text = " STATUS : KONEKSI GAGAL: " + ex.Message;
+                lblStatusKoneksi.Text = " STATUS : KONEKSI GAGAL: ";
                 lblStatusKoneksi.ForeColor = Color.Red; // Atur warna menjadi merah
                 MessageBox.Show("Gagal terhubung ke database:\n" + ex.Message, "Kesalahan Koneksi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
